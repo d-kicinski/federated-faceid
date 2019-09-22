@@ -1,0 +1,7 @@
+md5: 09015b9ce51050728ee86f3d7191fbda
+outs:
+- md5: 1b3acb7523006a9f22ff2247fbe6e6e7
+  path: chonk.jpeg
+  cache: true
+  metric: false
+  persist: false
