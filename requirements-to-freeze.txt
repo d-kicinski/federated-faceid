@@ -1,3 +1,5 @@
+torch
+torchvision
 seaborn
 numpy
 tabulate

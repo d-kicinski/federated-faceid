@@ -1,8 +1,9 @@
 import torch
 from torch import nn
+from torch.nn import Module
 
 
-class CNNCifar10(nn.Module):
+class CNNCifar10(Module):
     def __init__(self, dim_output: int = 10):
         super(CNNCifar10, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)

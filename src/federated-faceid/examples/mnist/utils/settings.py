@@ -11,7 +11,7 @@ class Settings:
     num_local_epochs: int
     num_local_batch: int
     num_users: int
-    client_fraction: float
+    user_fraction: float
 
     learning_rate: float
     iid: bool
@@ -28,7 +28,7 @@ def args_parser() -> Settings:
     parser.add_argument('--num_global_batch', type=int, default=constants.NUM_GLOBAL_BATCH)
     parser.add_argument('--num_users', type=int, default=constants.NUM_USERS,
                         help="number of users: K")
-    parser.add_argument('--client_fraction', type=float, default=constants.CLIENT_FRACTION,
+    parser.add_argument('--user_fraction', type=float, default=constants.USER_FRACTION,
                         help="the fraction of clients: C")
     parser.add_argument('--num_local_epochs', type=int, default=constants.NUM_LOCAL_EPOCHS,
                         help="the number of local epochs: E")
