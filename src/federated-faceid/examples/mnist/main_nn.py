@@ -1,15 +1,18 @@
+import multiprocessing
+from multiprocessing import Pipe
+from multiprocessing.connection import wait
 from typing import *
 
 import numpy as np
 import torch
 from torch import optim, Tensor
 from torch.nn import functional, Module
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Subset, Dataset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
+from models import federated as fd
 from models.baseline import CNNCifar10
-from models.federated import EdgeDevice, EdgeDeviceSettings, federated_averaging
 from utils import constants, data
 from utils.settings import Settings, args_parser
 
@@ -50,20 +53,22 @@ def train():
     model.to(settings.device)
     train_federated(model, dataset_train, settings)
 
-    dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                           train=False, transform=transform, download=True)
-    test_loader = DataLoader(dataset_test, batch_size=settings.num_global_batch, shuffle=False)
-    print('test on', len(dataset_test), 'samples')
-    test_acc, test_loss = test(model.cpu(), test_loader)
+    # dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
+    #                        train=False, transform=transform, download=True)
+    # test_loader = DataLoader(dataset_test, batch_size=settings.num_global_batch, shuffle=False)
+    # print('test on', len(dataset_test), 'samples')
+    # test_acc, test_loss = test(model.cpu(), test_loader)
 
 
 def train_federated(model: Module, dataset: CIFAR10, settings: Settings) -> Module:
     num_users: int = len(dataset.classes)
+    class_to_idx = dataset.class_to_idx
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
 
-    settings_edge_device = EdgeDeviceSettings(epochs=settings.num_local_epochs,
-                                              batch_size=settings.num_local_batch,
-                                              learning_rate=settings.learning_rate,
-                                              device=settings.device)
+    settings_edge_device = fd.EdgeDeviceSettings(epochs=settings.num_local_epochs,
+                                                 batch_size=settings.num_local_batch,
+                                                 learning_rate=settings.learning_rate,
+                                                 device=settings.device)
 
     subsets: List[Subset]
     if settings.iid:
@@ -71,33 +76,56 @@ def train_federated(model: Module, dataset: CIFAR10, settings: Settings) -> Modu
     else:
         subsets = data.split_dataset_non_iid(dataset)
 
-    users = [EdgeDevice(device_id=i, subset=subsets[i], settings=settings_edge_device)
-             for i in range(num_users)]
+    device_connections: Dict[int, fd.EdgeDeviceConnection] = {}
+    for device_name in dataset.classes:
+        device_id = class_to_idx[device_name]
+        handle_server, handle_device = Pipe(duplex=True)
+        device = fd.EdgeDevice(name=device_name,
+                               handle=handle_server,
+                               subset=subsets[device_id],
+                               settings=settings_edge_device)
 
-    max_users_in_round = max(int(settings.user_fraction * num_users), 1)
+        device_connections[device_id] = fd.EdgeDeviceConnection(handle=handle_device,
+                                                                process=device)
+
+    # max_users_in_round = max(int(settings.user_fraction * num_users), 1)
+    max_users_in_round = 2
 
     for i_epoch in range(settings.num_global_epochs):
         local_models: Dict[int, Module] = {}
         local_losses: Dict[int, float] = {}
 
-        users_in_round_ids = np.random.choice(range(num_users),
-                                              max_users_in_round,
-                                              replace=False)
+        users_in_round_ids = np.random.choice(range(num_users), max_users_in_round, replace=False)
+        device_connections_in_round = {i: device_connections[i] for i in users_in_round_ids}
 
-        for i_user in users_in_round_ids:
-            user = users[i_user]
-            user.download(model)
-            local_loss: float = user.train()
-            print(f"User {i_user} done, loss: {local_loss}")
+        for device_id, device_connection in device_connections_in_round.items():
+            print(f"[server] Starting {idx_to_class[device_id]}")
+            device_connection.process.start()
+            device_connection.handle.send(model)
 
-            local_losses[i_user] = local_loss
-            local_models[i_user] = user.upload()
+        # while len(local_losses) != len(users_in_round_ids):
+        #     handles = [c.handle for c in device_connections_in_round.values()]
+
+        for device_id, device_connection in device_connections_in_round.items():
+            handle = wait([device_connection.handle])[0]
+
+            print(f"[server] Expecting model form {idx_to_class[device_id]}")
+            local_name, local_model = handle.recv()
+            local_models[class_to_idx[local_name]] = local_model
+            print(f"[server] Receiving model form {local_name}")
+
+            print(f"[server] Terminating {local_name}")
+            device_connection.process.terminate()
+
+        # for device_id, device_connection in device_connections_in_round.items():
+        #     print(f"[server] Terminating {idx_to_class[device_id]}")
+        #     device_connection.process.terminate()
 
         # update global weights
-        model = federated_averaging(list(local_models.values()))
+        model = fd.federated_averaging(list(local_models.values()))
 
-        loss_avg = sum(list(local_losses.values())) / len(local_losses)
-        print('Round {:3d}, Average loss {:.3f}'.format(i_epoch, loss_avg))
+        # loss_avg = sum(list(local_losses.values())) / len(local_losses)
+        # print('Round {:3d}, Average loss {:.3f}'.format(i_epoch, loss_avg))
 
     return model
 
@@ -135,4 +163,5 @@ def train_server(model: Module, dataset: Dataset, settings: Settings) -> Module:
 
 
 if __name__ == '__main__':
+    multiprocessing.set_start_method(constants.PROCESS_START_METHOD)
     train()

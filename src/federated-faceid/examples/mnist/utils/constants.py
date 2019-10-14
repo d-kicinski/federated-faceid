@@ -12,3 +12,5 @@ SEED: int = 1
 DEVICE: str = "cpu"
 
 PATH_DATASET_CIFAR10: str = "data/cifar"
+
+PROCESS_START_METHOD: str = "spawn"

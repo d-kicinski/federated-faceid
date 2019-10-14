@@ -1,5 +1,8 @@
 import copy
 from dataclasses import dataclass
+from multiprocessing import Process
+from multiprocessing.connection import Connection
+from multiprocessing.connection import wait
 from typing import *
 
 import torch
@@ -30,23 +33,42 @@ class EdgeDeviceSettings:
     device: str
 
 
-class EdgeDevice:
-    def __init__(self, device_id: int, settings: EdgeDeviceSettings, subset: Subset):
-        self.device_id = device_id
-        self.setting = settings
+class EdgeDevice(Process):
+    def __init__(self, name: str, handle: Connection,
+                 settings: EdgeDeviceSettings, subset: Subset, model: Optional[Module] = None):
+        super().__init__()
+        self.name: str = name
+        self.handle: Connection = handle
+
+        self.setting: EdgeDeviceSettings = settings
         self._loss_func = CrossEntropyLoss()
         self._data_loader = DataLoader(subset.dataset,
                                        sampler=SubsetRandomSampler(subset.indices),
                                        batch_size=self.setting.batch_size)
 
-        self._model: Optional[Module] = None
+        self._model: Optional[Module] = model
 
-    def download(self, model: Module):
-        self._model = copy.deepcopy(model)
+    def run(self) -> None:
+        print(f"[{self.name}] Running device")
+        self.download()
+        print(f"[{self.name}] Model is downloaded")
+        # self.train()
+        self.upload()
+        print(f"[{self.name}] Model uploaded")
 
-    def upload(self) -> Module:
+    def download(self):
+        handle: Connection = wait([self.handle])[0]
+
+        model: Module = handle.recv()
+        self._model = model
+        # self._model.to(self.setting.device)
+        print(model)
+
+    def upload(self):
         if self._model is not None:
-            return copy.deepcopy(self._model)
+            self.handle.send((self.name, copy.deepcopy(self._model)))
+        # self.handle.send(f"[{self.name}] Hello, server")
+        # return copy.deepcopy(self._model)
         else:
             raise ValueError("Model not found on this device!")
 
@@ -76,3 +98,9 @@ class EdgeDevice:
                 batch_loss.append(loss.item())
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
         return sum(epoch_loss) / len(epoch_loss)
+
+
+@dataclass
+class EdgeDeviceConnection:
+    process: EdgeDevice
+    handle: Connection
