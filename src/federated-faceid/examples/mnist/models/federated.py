@@ -46,7 +46,7 @@ class EdgeDevice:
 
     def upload(self) -> Module:
         if self._model is not None:
-            return copy.deepcopy(self._model)
+            return self._model
         else:
             raise ValueError("Model not found on this device!")
 
