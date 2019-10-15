@@ -7,7 +7,7 @@ from typing import *
 
 import torch
 from torch.nn import Module, CrossEntropyLoss
-from torch.utils.data import DataLoader, Subset, SubsetRandomSampler
+from torch.utils.data import DataLoader, Dataset
 
 
 def federated_averaging(models: List[Module]) -> Module:
@@ -35,42 +35,41 @@ class EdgeDeviceSettings:
 
 class EdgeDevice(Process):
     def __init__(self, name: str, handle: Connection,
-                 settings: EdgeDeviceSettings, subset: Subset, model: Optional[Module] = None):
+                 settings: EdgeDeviceSettings, dataset: Dataset, model: Optional[Module] = None):
         super().__init__()
         self.name: str = name
         self.handle: Connection = handle
 
         self.setting: EdgeDeviceSettings = settings
         self._loss_func = CrossEntropyLoss()
-        self._data_loader = DataLoader(subset.dataset,
-                                       sampler=SubsetRandomSampler(subset.indices),
-                                       batch_size=self.setting.batch_size)
+        self._data_loader = DataLoader(dataset, batch_size=self.setting.batch_size)
 
         self._model: Optional[Module] = model
+        self._loss: float = -1.0
 
     def run(self) -> None:
         print(f"[{self.name}] Running device")
-        self.download()
-        print(f"[{self.name}] Model is downloaded")
-        # self.train()
-        self.upload()
-        print(f"[{self.name}] Model uploaded")
+        while True:
+            print(f"[{self.name}] Waiting ...")
+            self.download()
+            print(f"[{self.name}] Model is downloaded")
+            self._loss: float = 1.0  # self.train()
+            self.upload()
+            print(f"[{self.name}] Model uploaded")
 
     def download(self):
         handle: Connection = wait([self.handle])[0]
-
         model: Module = handle.recv()
         self._model = model
-        # self._model.to(self.setting.device)
-        print(model)
 
     def upload(self):
-        if self._model is not None:
-            self.handle.send((self.name, copy.deepcopy(self._model)))
-        # self.handle.send(f"[{self.name}] Hello, server")
-        # return copy.deepcopy(self._model)
-        else:
+        if self._model is None:
             raise ValueError("Model not found on this device!")
+
+        self.handle.send(EdgeDeviceResult(name=self.name,
+                                          loss=self._loss,
+                                          model=copy.deepcopy(self._model)))
+        del self._model
 
     def train(self, verbose: bool = False) -> float:
         if self._data_loader is None:
@@ -104,3 +103,10 @@ class EdgeDevice(Process):
 class EdgeDeviceConnection:
     process: EdgeDevice
     handle: Connection
+
+
+@dataclass
+class EdgeDeviceResult:
+    name: str
+    loss: float
+    model: Module

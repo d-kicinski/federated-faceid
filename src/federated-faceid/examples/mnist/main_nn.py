@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import optim, Tensor
 from torch.nn import functional, Module
-from torch.utils.data import DataLoader, Subset, Dataset
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
@@ -70,7 +70,7 @@ def train_federated(model: Module, dataset: CIFAR10, settings: Settings) -> Modu
                                                  learning_rate=settings.learning_rate,
                                                  device=settings.device)
 
-    subsets: List[Subset]
+    subsets: List[CIFAR10]
     if settings.iid:
         subsets = data.split_dataset_iid(dataset, num_users)
     else:
@@ -82,50 +82,47 @@ def train_federated(model: Module, dataset: CIFAR10, settings: Settings) -> Modu
         handle_server, handle_device = Pipe(duplex=True)
         device = fd.EdgeDevice(name=device_name,
                                handle=handle_server,
-                               subset=subsets[device_id],
+                               dataset=subsets[device_id],
                                settings=settings_edge_device)
-
         device_connections[device_id] = fd.EdgeDeviceConnection(handle=handle_device,
                                                                 process=device)
-
-    # max_users_in_round = max(int(settings.user_fraction * num_users), 1)
-    max_users_in_round = 2
+        device.start()
 
     for i_epoch in range(settings.num_global_epochs):
         local_models: Dict[int, Module] = {}
         local_losses: Dict[int, float] = {}
 
-        users_in_round_ids = np.random.choice(range(num_users), max_users_in_round, replace=False)
+        users_in_round_ids = np.random.choice(range(num_users),
+                                              constants.MAX_USERS_IN_ROUND,
+                                              replace=False)
+
         device_connections_in_round = {i: device_connections[i] for i in users_in_round_ids}
 
         for device_id, device_connection in device_connections_in_round.items():
-            print(f"[server] Starting {idx_to_class[device_id]}")
-            device_connection.process.start()
+            print(f"[server] Sending model to {idx_to_class[device_id]}")
             device_connection.handle.send(model)
 
-        # while len(local_losses) != len(users_in_round_ids):
-        #     handles = [c.handle for c in device_connections_in_round.values()]
-
-        for device_id, device_connection in device_connections_in_round.items():
-            handle = wait([device_connection.handle])[0]
-
-            print(f"[server] Expecting model form {idx_to_class[device_id]}")
-            local_name, local_model = handle.recv()
-            local_models[class_to_idx[local_name]] = local_model
-            print(f"[server] Receiving model form {local_name}")
-
-            print(f"[server] Terminating {local_name}")
-            device_connection.process.terminate()
-
         # for device_id, device_connection in device_connections_in_round.items():
-        #     print(f"[server] Terminating {idx_to_class[device_id]}")
-        #     device_connection.process.terminate()
+        #     handle = wait([device_connection.handle])[0]
+        while len(local_losses) != len(device_connections_in_round):
+            handles = [c.handle for c in device_connections_in_round.values()]
+            for handle in wait(handles):
+                device_result: fd.EdgeDeviceResult = handle.recv()
+
+                print(f"[server] Receiving model form {device_result.name}")
+                device_id = class_to_idx[device_result.name]
+                local_models[device_id] = device_result.model
+                local_losses[device_id] = device_result.loss
 
         # update global weights
         model = fd.federated_averaging(list(local_models.values()))
 
-        # loss_avg = sum(list(local_losses.values())) / len(local_losses)
-        # print('Round {:3d}, Average loss {:.3f}'.format(i_epoch, loss_avg))
+        loss_avg = sum(list(local_losses.values())) / len(local_losses)
+        print('Round {:3d}, Average loss {:.3f}'.format(i_epoch, loss_avg))
+
+    for device_id, device_connection in device_connections.items():
+        print(f"[server] Terminating {idx_to_class[device_id]}")
+        device_connection.process.terminate()
 
     return model
 

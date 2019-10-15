@@ -1,4 +1,4 @@
-NUM_GLOBAL_EPOCHS: int = 20
+NUM_GLOBAL_EPOCHS: int = 3
 NUM_GLOBAL_BATCH: int = 64
 NUM_LOCAL_EPOCHS: int = 5
 NUM_LOCAL_BATCH: int = 10
@@ -14,3 +14,5 @@ DEVICE: str = "cpu"
 PATH_DATASET_CIFAR10: str = "data/cifar"
 
 PROCESS_START_METHOD: str = "spawn"
+
+MAX_USERS_IN_ROUND: int = 2
