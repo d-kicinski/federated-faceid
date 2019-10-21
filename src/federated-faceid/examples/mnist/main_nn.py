@@ -111,19 +111,19 @@ def train_server(model: Module, dataset: Dataset, settings: Settings) -> Module:
     model.train()
     for i_epoch in range(settings.num_global_epochs):
         batch_loss = []
-        for i_batch, (data, target) in enumerate(dataset_iter):
+        for i_batch, (inputs, target) in enumerate(dataset_iter):
             optimizer.zero_grad()
-            data = data.to(settings.device)
+            inputs = inputs.to(settings.device)
             target = target.to(settings.device)
 
-            output: Tensor = model(data)
+            output: Tensor = model(inputs)
             loss: Tensor = functional.cross_entropy(output, target)
             loss.backward()
             optimizer.step()
 
             if i_batch % 50 == 0:
                 print(f"Train Epoch: {i_epoch}"
-                      f"[{i_batch * len(data)}/{len(dataset_iter.dataset)} "
+                      f"[{i_batch * len(inputs)}/{len(dataset_iter.dataset)} "
                       f"({100.0 * i_batch / len(dataset_iter):.0f}%)]"
                       f"\tLoss: {loss.item():.6f}")
             batch_loss.append(loss.item())
