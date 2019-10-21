@@ -1,12 +1,14 @@
 from typing import *
 
 import numpy as np
-from torch.utils.data import Dataset, Subset
+from torch.utils.data import Subset
 from torchvision.datasets import CIFAR10
 
 
-def split_dataset_iid(dataset: Dataset, num_splits: int) -> List[Subset]:
-    indices_per_split = np.array_split(np.random.shuffle(np.arange(len(dataset))), num_splits)
+def split_dataset_iid(dataset: CIFAR10, num_splits: int) -> List[Subset]:
+    indices = np.arange(len(dataset))
+    np.random.shuffle(indices)
+    indices_per_split = np.array_split(indices, num_splits)
     subsets = [Subset(dataset, indices) for indices in indices_per_split]
 
     return subsets
