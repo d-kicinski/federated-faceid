@@ -3,3 +3,4 @@ torchvision
 seaborn
 numpy
 tabulate
+sklearn

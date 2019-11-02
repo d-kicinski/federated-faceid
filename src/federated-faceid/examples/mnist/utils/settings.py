@@ -18,11 +18,17 @@ class Settings:
     stopping_rounds: int
     seed: int
 
+    distributed: bool
+
     device: str
 
 
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
+
+    parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
+                        help='whether use distributed training or not')
+
     # federated arguments
     parser.add_argument('--num_global_epochs', type=int, default=constants.NUM_GLOBAL_EPOCHS)
     parser.add_argument('--num_global_batch', type=int, default=constants.NUM_GLOBAL_BATCH)

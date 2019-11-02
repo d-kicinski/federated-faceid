@@ -1,60 +1,14 @@
-from typing import *
+from typing import Dict, List
 
 import numpy as np
-import torch
 from torch import optim, Tensor
-from torch.nn import functional, Module
-from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision import transforms
+from torch.nn import Module, functional
+from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision.datasets import CIFAR10
 
-from models.baseline import CNNCifar10
-from models.federated import EdgeDevice, EdgeDeviceSettings, federated_averaging
-from utils import constants, data
-from utils.settings import Settings, args_parser
-
-
-def test(net_g, data_loader):
-    # testing
-    net_g.eval()
-    test_loss = 0
-    correct = 0
-    l = len(data_loader)
-    for idx, (data, target) in enumerate(data_loader):
-        log_probs = net_g(data)
-        test_loss += functional.cross_entropy(log_probs, target).item()
-        y_pred = log_probs.data.max(1, keepdim=True)[1]
-        correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
-
-    test_loss /= len(data_loader.dataset)
-    print('\nTest set: Average loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(data_loader.dataset),
-        100. * correct / len(data_loader.dataset)))
-
-    return correct, test_loss
-
-
-def train():
-    # parse args
-    settings: Settings = args_parser()
-    settings.device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-    torch.manual_seed(settings.seed)
-
-    # load dataset and split users
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    dataset_train = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                            train=True, transform=transform, download=True)
-
-    model: torch.nn.Module = CNNCifar10()
-    model.to(settings.device)
-    train_federated(model, dataset_train, settings)
-
-    dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                           train=False, transform=transform, download=True)
-    test_loader = DataLoader(dataset_test, batch_size=settings.num_global_batch, shuffle=False)
-    print('test on', len(dataset_test), 'samples')
-    test_acc, test_loss = test(model.cpu(), test_loader)
+from models.federated import EdgeDeviceSettings, EdgeDevice, federated_averaging
+from utils import data
+from utils.settings import Settings
 
 
 def train_federated(model: Module, dataset: CIFAR10, settings: Settings) -> Module:
@@ -132,7 +86,3 @@ def train_server(model: Module, dataset: Dataset, settings: Settings) -> Module:
         print('\nTrain loss:', loss_avg)
         list_loss.append(loss_avg)
     return model
-
-
-if __name__ == '__main__':
-    train()

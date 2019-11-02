@@ -5,8 +5,9 @@ NUM_LOCAL_BATCH: int = 128
 NUM_USERS: int = 100
 USER_FRACTION: float = 0.5
 
-LEARNING_RATE: float = 1e-3
+LEARNING_RATE: float = 1e-1
 IID: bool = True
+DISTRIBUTED: bool = False
 STOPPING_ROUNDS: int = 3
 SEED: int = 1
 DEVICE: str = "cpu"
