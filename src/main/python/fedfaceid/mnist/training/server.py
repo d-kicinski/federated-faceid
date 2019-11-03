@@ -1,14 +1,13 @@
 import dataclasses
 
 import torch
-from torch import optim, Tensor
-from torch.nn import Module, functional
+from torch import Tensor
+from torch.nn import Module
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from training.commons import EarlyStopping
 from training.evaluation import evaluate, EvaluationResult
-from utils import constants
 from utils.settings import Settings
 
 
@@ -18,9 +17,19 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
                                     shuffle=True)
     dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
 
-    optimizer = optim.Adam(model.parameters())
+    criterion = torch.nn.CrossEntropyLoss()
+
+    optimizer = torch.optim.SGD(params=model.parameters(),
+                                lr=settings.learning_rate)
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1,
+                                                gamma=settings.learning_rate_decay)
+
     early_stopping = EarlyStopping(settings.stopping_rounds)
-    writer = SummaryWriter(str(constants.PATH_OUTPUT_MODEL_SERVER.joinpath("tensorboard")))
+    if settings.skip_stopping:
+        early_stopping.disable()
+
+    writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard").joinpath(settings.id)))
 
     list_loss = []
     global_step = 0
@@ -35,7 +44,7 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
             target = target.to(settings.device)
 
             output: Tensor = model(inputs)
-            loss: Tensor = functional.cross_entropy(output, target)
+            loss: Tensor = criterion(output, target)
             loss.backward()
             optimizer.step()
 
@@ -52,19 +61,22 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
         loss_avg = sum(batch_loss) / len(batch_loss)
         list_loss.append(loss_avg)
 
-        print(f"epoch={i_epoch}\t"
-              f"train_loss={loss_avg:.3f}\t"
-              f"{results}")
+        print(f"epoch={i_epoch}  "
+              f"global_step={global_step}  "
+              f"lr={scheduler.get_lr()[0]:.4f}  "
+              f"train_loss={loss_avg:.3f}  "
+              f"eval_loss={results.loss:.3f}  "
+              f"eval_f1={results.f1_score:.3f}")
 
         if early_stopping.is_best(results.loss):
-            print("Saving best model!")
             torch.save(model.state_dict(),
-                       constants.PATH_OUTPUT_MODEL_SERVER.joinpath("model.pt"))
+                       settings.save_path.joinpath("model.pt"))
 
         if early_stopping.update(results.loss).should_break:
             print("Early stopping! Loading best model.")
             model.load_state_dict(
-                torch.load(constants.PATH_OUTPUT_MODEL_SERVER.joinpath("model.pt")))
+                torch.load(settings.save_path.joinpath("model.pt")))
             break
 
+        scheduler.step(i_epoch)
     return model

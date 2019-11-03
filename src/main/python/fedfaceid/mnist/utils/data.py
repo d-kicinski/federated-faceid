@@ -14,7 +14,7 @@ def split_dataset_iid(dataset: CIFAR10, num_splits: int) -> List[Subset]:
     return subsets
 
 
-def split_dataset_non_iid(dataset: CIFAR10) -> List[Subset]:
+def split_dataset_non_iid(dataset: CIFAR10, num_splits: int) -> List[Subset]:
     label2data: List[Subset] = []
 
     for label_id in range(len(dataset.classes)):

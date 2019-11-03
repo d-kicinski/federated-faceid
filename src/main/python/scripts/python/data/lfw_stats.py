@@ -1,11 +1,8 @@
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
-from tabulate import tabulate
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
+from tabulate import tabulate
 
 
 def calc_lfw_statistics(data_dir: Path, min_examples: int = 5):

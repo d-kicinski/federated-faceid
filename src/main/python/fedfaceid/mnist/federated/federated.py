@@ -27,13 +27,21 @@ class EdgeDeviceSettings:
     batch_size: int
     epochs: int
     learning_rate: float
+    learning_rate_decay: float
     device: str
+
+
+@dataclass
+class TrainingResult:
+    loss: float
+    steps: int
+    learning_rate: float
 
 
 class EdgeDevice:
     def __init__(self, device_id: int, settings: EdgeDeviceSettings, subset: Subset):
         self.device_id = device_id
-        self.setting = settings
+        self.setting = copy.deepcopy(settings)
         self._loss_func = CrossEntropyLoss()
         self._data_loader = DataLoader(subset.dataset,
                                        sampler=SubsetRandomSampler(subset.indices),
@@ -46,33 +54,36 @@ class EdgeDevice:
 
     def upload(self) -> Module:
         if self._model is not None:
-            return self._model
+            return copy.deepcopy(self._model)
         else:
             raise ValueError("Model not found on this device!")
 
-    def train(self, verbose: bool = False) -> float:
+    def train(self) -> TrainingResult:
         if self._data_loader is None:
             raise ValueError("Dataset not found on this device!")
 
         self._model.train()
+        self.setting.learning_rate = self.setting.learning_rate * self.setting.learning_rate_decay
         optimizer = torch.optim.SGD(params=self._model.parameters(),
-                                    lr=self.setting.learning_rate,
-                                    momentum=0.9)
-
+                                    lr=self.setting.learning_rate)
         epoch_loss = []
-        for i_epoch in range(self.setting.epochs):
+        local_steps: int = 0
+        for _ in range(self.setting.epochs):
             batch_loss = []
             for i_batch, (images, labels) in enumerate(self._data_loader):
-                images, labels = images.to(self.setting.device), labels.to(self.setting.device)
                 self._model.zero_grad()
-                log_probs = self._model(images)
-                loss = self._loss_func(log_probs, labels)
+                images = images.to(self.setting.device)
+                labels = labels.to(self.setting.device)
+
+                logits = self._model(images)
+                loss = self._loss_func(logits, labels)
                 loss.backward()
                 optimizer.step()
-                if verbose and i_batch % 10 == 0:
-                    print('Update Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'
-                          .format(i_batch, i_batch * len(images), len(self._data_loader),
-                                  100.0 * i_batch / len(self._data_loader), loss.item()))
+                local_steps += 1
                 batch_loss.append(loss.item())
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
-        return sum(epoch_loss) / len(epoch_loss)
+
+        mean_loss = sum(epoch_loss) / len(epoch_loss)
+        return TrainingResult(loss=mean_loss,
+                              steps=local_steps,
+                              learning_rate=self.setting.learning_rate)

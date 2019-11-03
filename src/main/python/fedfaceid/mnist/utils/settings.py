@@ -1,5 +1,8 @@
 import argparse
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 from utils import constants
 
@@ -12,24 +15,55 @@ class Settings:
     num_local_batch: int
     num_users: int
     user_fraction: float
+    num_subsets_per_user: int
 
     learning_rate: float
+    learning_rate_decay: float
     non_iid: bool
     stopping_rounds: int
+    skip_stopping: bool
     seed: int
 
     distributed: bool
 
     device: str
 
+    id: Optional[str] = None
+    save_path: Optional[Path] = None
+
+
+def create_save_path(settings: Settings) -> Path:
+    path = Path("artifacts")
+    model_name = "mnist"
+    if settings.distributed:
+        model_name += "_distributed"
+    if settings.non_iid:
+        model_name += "_non_iid"
+    if settings.id is not None:
+        model_name += f"_{settings.id}"
+    path = path.joinpath(model_name)
+
+    path.mkdir(exist_ok=True, parents=True)
+    path_tensorboard = path.joinpath("tensorboard").joinpath(settings.id)
+    if path_tensorboard.exists():
+        shutil.rmtree(str(path_tensorboard))
+
+    return path
+
 
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--id', type=str, required=False)
+
+    parser.add_argument('--skip_stopping', action='store_true', default=constants.SKIP_STOPPING)
     parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
                         help='whether use distributed training or not')
+    parser.add_argument('--non_iid', action='store_true', default=constants.NON_IID,
+                        help='whether i.i.d or not')
 
     # federated arguments
+    parser.add_argument('--num_subsets_per_user', type=int, default=constants.NUM_SUBSETS_PER_USER)
     parser.add_argument('--num_global_epochs', type=int, default=constants.NUM_GLOBAL_EPOCHS)
     parser.add_argument('--num_global_batch', type=int, default=constants.NUM_GLOBAL_BATCH)
     parser.add_argument('--num_users', type=int, default=constants.NUM_USERS,
@@ -40,12 +74,10 @@ def args_parser() -> Settings:
                         help="the number of local epochs: E")
     parser.add_argument('--num_local_batch', type=int, default=constants.NUM_LOCAL_BATCH,
                         help="local batch size: B")
-    parser.add_argument('--non_iid', action='store_true', default=constants.IID,
-                        help='whether i.i.d or not')
 
     # other arguments
-    parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE,
-                        help="learning rate")
+    parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE)
+    parser.add_argument('--learning_rate_decay', type=float, default=constants.LEARNING_RATE_DECAY)
     parser.add_argument('--stopping_rounds', type=int, default=constants.STOPPING_ROUNDS,
                         help='rounds of early stopping')
     parser.add_argument('--seed', type=int, default=constants.SEED)
