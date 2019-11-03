@@ -2,7 +2,7 @@ import dataclasses
 
 import torch
 from torch import Tensor
-from torch.nn import Module, functional
+from torch.nn import Module
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -17,9 +17,14 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
                                     shuffle=True)
     dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
 
+    criterion = torch.nn.CrossEntropyLoss()
+
     optimizer = torch.optim.SGD(params=model.parameters(),
                                 lr=settings.learning_rate,
-                                momentum=0.9)
+                                momentum=0.9, nesterov=True)
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1,
+                                                gamma=settings.learning_rate_decay)
 
     early_stopping = EarlyStopping(settings.stopping_rounds)
     writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard")))
@@ -37,7 +42,7 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
             target = target.to(settings.device)
 
             output: Tensor = model(inputs)
-            loss: Tensor = functional.cross_entropy(output, target)
+            loss: Tensor = criterion(output, target)
             loss.backward()
             optimizer.step()
 
@@ -68,4 +73,5 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
                 torch.load(settings.save_path.joinpath("model.pt")))
             break
 
+        scheduler.step(i_epoch)
     return model

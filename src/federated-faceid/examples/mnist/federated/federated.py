@@ -27,6 +27,7 @@ class EdgeDeviceSettings:
     batch_size: int
     epochs: int
     learning_rate: float
+    learning_rate_decay: float
     device: str
 
 
@@ -55,6 +56,7 @@ class EdgeDevice:
             raise ValueError("Dataset not found on this device!")
 
         self._model.train()
+        self.setting.learning_rate = self.setting.learning_rate * self.setting.learning_rate_decay
         optimizer = torch.optim.SGD(params=self._model.parameters(),
                                     lr=self.setting.learning_rate,
                                     momentum=0.9)

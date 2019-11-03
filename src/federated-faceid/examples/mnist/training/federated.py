@@ -23,6 +23,7 @@ def train_federated(model: Module, dataset_train: CIFAR10, dataset_validate: CIF
     settings_edge_device = EdgeDeviceSettings(epochs=settings.num_local_epochs,
                                               batch_size=settings.num_local_batch,
                                               learning_rate=settings.learning_rate,
+                                              learning_rate_decay=settings.learning_rate_decay,
                                               device=settings.device)
 
     subsets: List[Subset]

@@ -17,6 +17,7 @@ class Settings:
     user_fraction: float
 
     learning_rate: float
+    learning_rate_decay: float
     non_iid: bool
     stopping_rounds: int
     seed: int
@@ -65,8 +66,8 @@ def args_parser() -> Settings:
                         help="local batch size: B")
 
     # other arguments
-    parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE,
-                        help="learning rate")
+    parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE)
+    parser.add_argument('--learning_rate_decay', type=float, default=constants.LEARNING_RATE_DECAY)
     parser.add_argument('--stopping_rounds', type=int, default=constants.STOPPING_ROUNDS,
                         help='rounds of early stopping')
     parser.add_argument('--seed', type=int, default=constants.SEED)
