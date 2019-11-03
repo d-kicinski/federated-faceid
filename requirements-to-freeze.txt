@@ -4,3 +4,4 @@ seaborn
 numpy
 tabulate
 sklearn
+tensorboard

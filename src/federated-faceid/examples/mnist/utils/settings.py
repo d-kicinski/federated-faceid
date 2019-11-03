@@ -14,7 +14,7 @@ class Settings:
     user_fraction: float
 
     learning_rate: float
-    iid: bool
+    non_iid: bool
     stopping_rounds: int
     seed: int
 
@@ -40,7 +40,7 @@ def args_parser() -> Settings:
                         help="the number of local epochs: E")
     parser.add_argument('--num_local_batch', type=int, default=constants.NUM_LOCAL_BATCH,
                         help="local batch size: B")
-    parser.add_argument('--iid', action='store_true', default=constants.IID,
+    parser.add_argument('--non_iid', action='store_true', default=constants.IID,
                         help='whether i.i.d or not')
 
     # other arguments
