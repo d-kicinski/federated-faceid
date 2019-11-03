@@ -7,13 +7,14 @@ from models.baseline import CNNCifar10
 from training import evaluation
 from training.evaluation import EvaluationResult
 from utils import constants
-from utils.settings import Settings, args_parser
+from utils.settings import Settings, args_parser, create_save_path
 
 
 def evaluate():
     # parse args
     settings: Settings = args_parser()
     settings.device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    settings.save_path = create_save_path(settings)
     torch.manual_seed(settings.seed)
 
     # load dataset and split users
@@ -26,17 +27,12 @@ def evaluate():
     dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
                            train=False, transform=transform, download=True)
 
-    if settings.distributed:
-        save_path = constants.PATH_OUTPUT_MODEL_FEDERATED
-        model.load_state_dict(torch.load(save_path.joinpath("model.pt")))
-    else:
-        save_path = constants.PATH_OUTPUT_MODEL_SERVER
-        model.load_state_dict(torch.load(save_path.joinpath("model.pt")))
+    model.load_state_dict(torch.load(settings.save_path.joinpath("model.pt")))
 
     test_loader = DataLoader(dataset_test, batch_size=settings.num_global_batch, shuffle=False)
     result: EvaluationResult = evaluation.evaluate(model.cpu(), test_loader, verbose=True)
 
-    with save_path.joinpath("evaluation.txt").open("w") as f:
+    with settings.save_path.joinpath("evaluation.txt").open("w") as f:
         f.write(str(result))
 
 

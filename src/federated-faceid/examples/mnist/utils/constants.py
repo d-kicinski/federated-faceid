@@ -1,14 +1,14 @@
 from pathlib import Path
 
-NUM_GLOBAL_EPOCHS: int = 100
-NUM_GLOBAL_BATCH: int = 64
-NUM_LOCAL_EPOCHS: int = 5
+NUM_GLOBAL_EPOCHS: int = 1000
+NUM_GLOBAL_BATCH: int = 128
+NUM_LOCAL_EPOCHS: int = 1
 NUM_LOCAL_BATCH: int = 128
 NUM_USERS: int = 100
-USER_FRACTION: float = 0.5
+USER_FRACTION: float = 1.0
 
-LEARNING_RATE: float = 1e-3
-IID: bool = True
+LEARNING_RATE: float = 5e-3
+NON_IID: bool = False
 DISTRIBUTED: bool = False
 STOPPING_ROUNDS: int = 10
 SEED: int = 1

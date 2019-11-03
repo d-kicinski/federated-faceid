@@ -1,14 +1,13 @@
 import dataclasses
 
 import torch
-from torch import optim, Tensor
+from torch import Tensor
 from torch.nn import Module, functional
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from training.commons import EarlyStopping
 from training.evaluation import evaluate, EvaluationResult
-from utils import constants
 from utils.settings import Settings
 
 
@@ -18,9 +17,12 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
                                     shuffle=True)
     dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
 
-    optimizer = optim.Adam(model.parameters())
+    optimizer = torch.optim.SGD(params=model.parameters(),
+                                lr=settings.learning_rate,
+                                momentum=0.9)
+
     early_stopping = EarlyStopping(settings.stopping_rounds)
-    writer = SummaryWriter(str(constants.PATH_OUTPUT_MODEL_SERVER.joinpath("tensorboard")))
+    writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard")))
 
     list_loss = []
     global_step = 0
@@ -57,14 +59,13 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
               f"{results}")
 
         if early_stopping.is_best(results.loss):
-            print("Saving best model!")
             torch.save(model.state_dict(),
-                       constants.PATH_OUTPUT_MODEL_SERVER.joinpath("model.pt"))
+                       settings.save_path.joinpath("model.pt"))
 
         if early_stopping.update(results.loss).should_break:
             print("Early stopping! Loading best model.")
             model.load_state_dict(
-                torch.load(constants.PATH_OUTPUT_MODEL_SERVER.joinpath("model.pt")))
+                torch.load(settings.save_path.joinpath("model.pt")))
             break
 
     return model

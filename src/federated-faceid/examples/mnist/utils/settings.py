@@ -1,5 +1,8 @@
 import argparse
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
 from utils import constants
 
@@ -22,12 +25,32 @@ class Settings:
 
     device: str
 
+    save_path: Optional[Path] = None
+
+
+def create_save_path(settings: Settings) -> Path:
+    path = Path("artifacts")
+    model_name = "mnist"
+    if settings.distributed:
+        model_name += "_distributed"
+    if settings.non_iid:
+        model_name += "_non_iid"
+    path = path.joinpath(model_name)
+
+    path.mkdir(exist_ok=True, parents=True)
+    if path.joinpath("tensorboard").exists():
+        shutil.rmtree(str(path))
+
+    return path
+
 
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
                         help='whether use distributed training or not')
+    parser.add_argument('--non_iid', action='store_true', default=constants.NON_IID,
+                        help='whether i.i.d or not')
 
     # federated arguments
     parser.add_argument('--num_global_epochs', type=int, default=constants.NUM_GLOBAL_EPOCHS)
@@ -40,8 +63,6 @@ def args_parser() -> Settings:
                         help="the number of local epochs: E")
     parser.add_argument('--num_local_batch', type=int, default=constants.NUM_LOCAL_BATCH,
                         help="local batch size: B")
-    parser.add_argument('--non_iid', action='store_true', default=constants.IID,
-                        help='whether i.i.d or not')
 
     # other arguments
     parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE,
