@@ -15,6 +15,7 @@ class Settings:
     num_local_batch: int
     num_users: int
     user_fraction: float
+    num_subsets_per_user: int
 
     learning_rate: float
     learning_rate_decay: float
@@ -54,6 +55,7 @@ def args_parser() -> Settings:
                         help='whether i.i.d or not')
 
     # federated arguments
+    parser.add_argument('--num_subsets_per_user', type=int, default=constants.NUM_SUBSETS_PER_USER)
     parser.add_argument('--num_global_epochs', type=int, default=constants.NUM_GLOBAL_EPOCHS)
     parser.add_argument('--num_global_batch', type=int, default=constants.NUM_GLOBAL_BATCH)
     parser.add_argument('--num_users', type=int, default=constants.NUM_USERS,

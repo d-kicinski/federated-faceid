@@ -1,4 +1,5 @@
 import dataclasses
+from functools import reduce
 from typing import Dict, List
 
 import numpy as np
@@ -15,10 +16,17 @@ from utils import data
 from utils.settings import Settings
 
 
+def merge_subsets(s1: Subset, s2: Subset) -> Subset:
+    s1.indices += s2.indices
+    return s1
+
+
 def train_federated(model: Module, dataset_train: CIFAR10, dataset_validate: CIFAR10,
                     settings: Settings) -> Module:
     dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
-    num_users: int = len(dataset_train.classes)
+    # num_users: int = len(dataset_train.classes)
+    num_users = settings.num_users
+    subsets_per_user = settings.num_subsets_per_user
 
     settings_edge_device = EdgeDeviceSettings(epochs=settings.num_local_epochs,
                                               batch_size=settings.num_local_batch,
@@ -28,12 +36,20 @@ def train_federated(model: Module, dataset_train: CIFAR10, dataset_validate: CIF
 
     subsets: List[Subset]
     if settings.non_iid:
-        subsets = data.split_dataset_non_iid(dataset_train)
+        subsets = data.split_dataset_non_iid(dataset_train, num_users * subsets_per_user)
     else:
         subsets = data.split_dataset_iid(dataset_train, num_users)
 
-    users = [EdgeDevice(device_id=i, subset=subsets[i], settings=settings_edge_device)
-             for i in range(num_users)]
+    users = []
+    subsets_indices = list(range(len(subsets)))
+    for i in range(num_users):
+        indices = np.random.choice(subsets_indices, size=subsets_per_user, replace=False)
+
+        [subsets_indices.remove(i) for i in indices]
+        subset_for_user = reduce(merge_subsets, [subsets[i] for i in indices])
+
+        user = EdgeDevice(device_id=i, subset=subset_for_user, settings=settings_edge_device)
+        users.append(user)
 
     max_users_in_round = max(int(settings.user_fraction * num_users), 1)
 
