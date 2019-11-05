@@ -8,6 +8,7 @@ from torch.nn import Module
 from torch.utils.data import Subset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import CIFAR10
+from tqdm import tqdm
 
 from federated.federated import EdgeDeviceSettings, EdgeDevice, federated_averaging
 from training.commons import EarlyStopping
@@ -54,6 +55,9 @@ def train_federated(model: Module, dataset_train: CIFAR10, dataset_validate: CIF
     max_users_in_round = max(int(settings.user_fraction * num_users), 1)
 
     early_stopping = EarlyStopping(settings.stopping_rounds)
+    if settings.skip_stopping:
+        early_stopping.disable()
+
     writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard")))
 
     global_step = 0
@@ -68,7 +72,7 @@ def train_federated(model: Module, dataset_train: CIFAR10, dataset_validate: CIF
                                               max_users_in_round,
                                               replace=False)
 
-        for i_user in users_in_round_ids:
+        for i_user in tqdm(users_in_round_ids):
             user = users[i_user]
             user.download(model)
             local_loss: float = user.train()

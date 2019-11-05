@@ -6,10 +6,14 @@ class EarlyStopping:
         self._counter: int = 0
         self._should_break: bool = False
         self._value: float = 0.0
+        self._enabled = True
+
+    def disable(self):
+        self._enabled = False
 
     @property
     def should_break(self) -> bool:
-        return True if self._counter >= self._patience else False
+        return True if self._enabled and self._counter >= self._patience else False
 
     def is_best(self, value: float) -> bool:
         if self._should_init:

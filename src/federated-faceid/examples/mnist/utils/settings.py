@@ -21,12 +21,14 @@ class Settings:
     learning_rate_decay: float
     non_iid: bool
     stopping_rounds: int
+    skip_stopping: bool
     seed: int
 
     distributed: bool
 
     device: str
 
+    id: Optional[str] = None
     save_path: Optional[Path] = None
 
 
@@ -37,6 +39,8 @@ def create_save_path(settings: Settings) -> Path:
         model_name += "_distributed"
     if settings.non_iid:
         model_name += "_non_iid"
+    if settings.id is not None:
+        model_name += f"_{settings.id}"
     path = path.joinpath(model_name)
 
     path.mkdir(exist_ok=True, parents=True)
@@ -49,6 +53,9 @@ def create_save_path(settings: Settings) -> Path:
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--id', type=str, required=False)
+
+    parser.add_argument('--skip_stopping', action='store_true', default=constants.SKIP_STOPPING)
     parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
                         help='whether use distributed training or not')
     parser.add_argument('--non_iid', action='store_true', default=constants.NON_IID,

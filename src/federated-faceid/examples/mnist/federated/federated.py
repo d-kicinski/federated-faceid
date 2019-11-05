@@ -58,8 +58,7 @@ class EdgeDevice:
         self._model.train()
         self.setting.learning_rate = self.setting.learning_rate * self.setting.learning_rate_decay
         optimizer = torch.optim.SGD(params=self._model.parameters(),
-                                    lr=self.setting.learning_rate,
-                                    momentum=0.9)
+                                    lr=self.setting.learning_rate)
 
         epoch_loss = []
         for i_epoch in range(self.setting.epochs):

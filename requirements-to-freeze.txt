@@ -5,3 +5,4 @@ numpy
 tabulate
 sklearn
 tensorboard
+tqdm

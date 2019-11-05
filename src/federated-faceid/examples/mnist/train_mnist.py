@@ -18,16 +18,26 @@ def train():
     torch.manual_seed(settings.seed)
 
     # load dataset and split users
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
+
     dataset_train = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                            train=True, transform=transform, download=True)
+                            train=True, transform=transform_train, download=True)
 
     model: torch.nn.Module = CNNCifar10()
     model.to(settings.device)
 
     dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                           train=False, transform=transform, download=True)
+                           train=False, transform=transform_test, download=True)
 
     if settings.distributed:
         model = training.train_federated(model, dataset_train, dataset_test, settings)

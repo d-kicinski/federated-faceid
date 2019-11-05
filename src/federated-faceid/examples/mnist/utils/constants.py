@@ -1,17 +1,18 @@
 from pathlib import Path
 
-NUM_GLOBAL_EPOCHS: int = 1000
+NUM_GLOBAL_EPOCHS: int = 3000
 NUM_GLOBAL_BATCH: int = 32
 NUM_LOCAL_EPOCHS: int = 1
 NUM_LOCAL_BATCH: int = 64
 NUM_USERS: int = 100
 USER_FRACTION: float = 1.0
-NUM_SUBSETS_PER_USER: int = 2
+NUM_SUBSETS_PER_USER: int = 1
 
 LEARNING_RATE: float = 5e-3
 LEARNING_RATE_DECAY: float = 0.99
 NON_IID: bool = False
 DISTRIBUTED: bool = False
+SKIP_STOPPING: bool = False
 STOPPING_ROUNDS: int = 20
 SEED: int = 1
 DEVICE: str = "cpu"

@@ -20,13 +20,15 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
     criterion = torch.nn.CrossEntropyLoss()
 
     optimizer = torch.optim.SGD(params=model.parameters(),
-                                lr=settings.learning_rate,
-                                momentum=0.9, nesterov=True)
+                                lr=settings.learning_rate)
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1,
                                                 gamma=settings.learning_rate_decay)
 
     early_stopping = EarlyStopping(settings.stopping_rounds)
+    if settings.skip_stopping:
+        early_stopping.disable()
+
     writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard")))
 
     list_loss = []
