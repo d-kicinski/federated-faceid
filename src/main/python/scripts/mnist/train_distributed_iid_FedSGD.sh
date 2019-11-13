@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PYTHONPATH=./mnist python3 mnist/train_mnist.py \
+PYTHONPATH=. python3 fedfaceid/mnist/train_mnist.py \
   --id FedSGD \
   --skip_stopping \
   --distributed \

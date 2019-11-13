@@ -37,7 +37,7 @@ def train():
     model.to(settings.device)
 
     dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,
-                           train=False, transform=transform_test, download=True)
+                           train=False, transform=transform_test, download=False)
 
     if settings.distributed:
         model = training.train_federated(model, dataset_train, dataset_test, settings)

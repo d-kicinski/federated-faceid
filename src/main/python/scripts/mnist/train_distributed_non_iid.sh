@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PYTHONPATH=./mnist python3 mnist/train_mnist.py \
+PYTHONPATH=. python3 fedfaceid/mnist/train_mnist.py \
   --distributed \
   --non_iid \
   --num_local_epochs 5 \

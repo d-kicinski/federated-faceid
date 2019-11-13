@@ -42,5 +42,4 @@ def evaluate(model: Module, data_loader: DataLoader, verbose: bool = False) -> E
     if verbose:
         print(classification_report(labels_golden, labels_system))
 
-    model.train()
     return EvaluationResult(f1, accuracy, loss)

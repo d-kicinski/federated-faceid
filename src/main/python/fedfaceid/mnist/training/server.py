@@ -29,7 +29,7 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
     if settings.skip_stopping:
         early_stopping.disable()
 
-    writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard")))
+    writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard").joinpath(settings.id)))
 
     list_loss = []
     global_step = 0
@@ -61,9 +61,12 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
         loss_avg = sum(batch_loss) / len(batch_loss)
         list_loss.append(loss_avg)
 
-        print(f"epoch={i_epoch}\t"
-              f"train_loss={loss_avg:.3f}\t"
-              f"{results}")
+        print(f"epoch={i_epoch}  "
+              f"global_step={global_step}  "
+              f"lr={scheduler.get_lr()[0]:.4f}  "
+              f"train_loss={loss_avg:.3f}  "
+              f"eval_loss={results.loss:.3f}  "
+              f"eval_f1={results.f1_score:.3f}")
 
         if early_stopping.is_best(results.loss):
             torch.save(model.state_dict(),

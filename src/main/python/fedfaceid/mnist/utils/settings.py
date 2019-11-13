@@ -44,8 +44,9 @@ def create_save_path(settings: Settings) -> Path:
     path = path.joinpath(model_name)
 
     path.mkdir(exist_ok=True, parents=True)
-    if path.joinpath("tensorboard").exists():
-        shutil.rmtree(str(path))
+    path_tensorboard = path.joinpath("tensorboard").joinpath(settings.id)
+    if path_tensorboard.exists():
+        shutil.rmtree(str(path_tensorboard))
 
     return path
 
