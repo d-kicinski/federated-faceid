@@ -1,0 +1,3 @@
+[submodule "src/main/python/facenet_train"]
+	path = src/main/python/facenet_train
+	url = https://github.com/tamerthamoqa/facenet-pytorch-vggface2.git
