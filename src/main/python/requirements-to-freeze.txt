@@ -1,6 +1,7 @@
 torch
 torchvision
 seaborn
+matplotlib
 numpy
 tabulate
 sklearn
