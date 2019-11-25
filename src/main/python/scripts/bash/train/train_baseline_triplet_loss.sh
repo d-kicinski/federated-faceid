@@ -3,7 +3,7 @@ set -e
 export PYTHONPATH=./fedfaceid
 
 python3 ./fedfaceid/facenet/train_triplet.py \
-    --num_triplets_train 100 \
+    --num_triplets_train 100000 \
     --output_dir "../../../output_dir_baseline" \
     --dataset_dir "../../../data/vggface2/train_cropped" \
     --lfw_dir "../../../data/lfw/data" \

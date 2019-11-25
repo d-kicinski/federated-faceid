@@ -3,11 +3,11 @@ import dataclasses
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from pprint import pprint
 from typing import Optional, Mapping, Any, List
 
 import numpy as np
 import torch
-import torchvision.transforms as transforms
 from torch.nn import Module
 from torch.nn.modules.distance import PairwiseDistance
 from torch.optim.optimizer import Optimizer
@@ -15,45 +15,10 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from dataloaders.LFWDataset import LFWDataset
-from dataloaders.triplet_loss_dataloader import TripletFaceDataset
+from commons import get_train_data_loader, get_validation_data_loader, ModelBuilder, load_checkpoint
+from evaluation import EvaluationMetrics, evaluate
 from losses.triplet_loss import TripletLoss
-from models.inceptionresnetv2 import InceptionResnetV2Triplet
-from models.resnet101 import Resnet101Triplet
-from models.resnet18 import Resnet18Triplet
-from models.resnet34 import Resnet34Triplet
-from models.resnet50 import Resnet50Triplet
-from plots import plot_roc_lfw
-from validate_on_LFW import evaluate_lfw
-
-
-@dataclass
-class DataSettings:
-    output_dir: Path = Path("../../../output_dir_baseline")
-    dataset_dir: Path = Path("../../../data/vggface2/train_cropped")
-    lfw_dir: Path = Path("../../../data/lfw/data")
-    dataset_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
-    training_triplets_path: Path = Path("../../../data/vggface2/train_triplets_100000.npy")
-    checkpoint_path: Optional[Path] = None
-
-
-@dataclass
-class ModelSettings:
-    lfw_batch_size: int = 64
-    lfw_validation_epoch_interval: int = 1
-
-    model_architecture: str = "resnet34"
-    optimizer: str = "adam"
-
-    epochs: int = 30
-    batch_size: int = 64
-    learning_rate: float = 0.001
-    embedding_dim: int = 128
-    triplet_loss_margin: float = 0.5
-    pretrained_on_imagenet: bool = False
-
-    num_triplets_train: int = 100_000
-    num_workers: int = 4
+from settings import DataSettings, ModelSettings
 
 
 def parse_args():
@@ -101,40 +66,6 @@ def parse_args():
     return parser.parse_args()
 
 
-class ModelBuilder:
-    @staticmethod
-    def build(model_architecture: str, embedding_dim: int, imagenet_pretrained: bool) -> Module:
-        if model_architecture == "resnet18":
-            model = Resnet18Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
-            )
-        elif model_architecture == "resnet34":
-            model = Resnet34Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
-            )
-        elif model_architecture == "resnet50":
-            model = Resnet50Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
-            )
-        elif model_architecture == "resnet101":
-            model = Resnet101Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
-            )
-        elif model_architecture == "inceptionresnetv2":
-            model = InceptionResnetV2Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
-            )
-        else:
-            raise ValueError(f"Architecture {model_architecture} is unknown!")
-
-        return model
-
-
 class OptimizerBuilder:
     @staticmethod
     def build(model: Module, optimizer: str, learning_rate: float) -> Optimizer:
@@ -149,31 +80,6 @@ class OptimizerBuilder:
         return optimizer_model
 
 
-@dataclass
-class CheckpointValue:
-    model: Module
-    optimizer: Optimizer
-    epoch: int
-    global_step: int
-
-
-def load_checkpoint(model: Module, optimizer: Optimizer, checkpoint_path: Path) -> CheckpointValue:
-    if not checkpoint_path.exists():
-        raise ValueError(f"Checkpoint {checkpoint_path} doesnt exist!")
-
-    print(f"Loading checkpoint {checkpoint_path}")
-    checkpoint = torch.load(str(checkpoint_path))
-
-    # In order to load state dict for optimizers correctly, model has to be loaded to gpu first
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-    epoch = checkpoint["epoch"]
-    global_step = checkpoint["global_step"]
-
-    print(f"Checkpoint loaded: start epoch from checkpoint = {epoch}")
-
-    return CheckpointValue(model, optimizer, epoch, global_step)
 
 
 @dataclass
@@ -237,52 +143,6 @@ class Tensorboard:
         self._writer.add_scalar(name, value, global_step=global_step)
 
 
-def get_train_data_loader(settings_model: ModelSettings,
-                          settings_data: DataSettings) -> DataLoader:
-    # Define image data pre-processing transforms
-    #   ToTensor() normalizes pixel values between [0, 1]
-    #   Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]) normalizes pixel values between [-1, 1]
-
-    transforms_train = transforms.Compose([
-        transforms.RandomCrop(size=160),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std=[0.5, 0.5, 0.5])
-    ])
-
-    data_loader_train = DataLoader(
-        dataset=TripletFaceDataset(root_dir=settings_data.dataset_dir,
-                                   csv_name=settings_data.dataset_csv_file,
-                                   num_triplets=settings_model.num_triplets_train,
-                                   training_triplets_path=settings_data.training_triplets_path,
-                                   transform=transforms_train),
-        batch_size=settings_model.batch_size,
-        num_workers=settings_model.num_workers,
-        shuffle=False
-    )
-    return data_loader_train
-
-
-def get_validation_data_loader(settings_model: ModelSettings,
-                               settings_data: DataSettings) -> DataLoader:
-    transforms_lfw = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std=[0.5, 0.5, 0.5])
-    ])
-
-    data_loader_lfw = DataLoader(
-        dataset=LFWDataset(data_path=settings_data.lfw_dir.joinpath("test"),
-                           pairs_path=settings_data.lfw_dir.joinpath("LFW_pairs.txt"),
-                           transform=transforms_lfw),
-        batch_size=settings_model.lfw_batch_size,
-        num_workers=settings_model.num_workers,
-        shuffle=False
-    )
-    return data_loader_lfw
-
-
 def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     output_dir: Path = settings_data.output_dir
     output_dir_logs = output_dir.joinpath("logs")
@@ -302,9 +162,9 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     data_loader_train: DataLoader = get_train_data_loader(settings_model, settings_data)
     data_loader_validate: DataLoader = get_validation_data_loader(settings_model, settings_data)
 
-    model: torch.nn.Module = ModelBuilder.build(settings_model.model_architecture,
-                                                settings_model.embedding_dim,
-                                                settings_model.pretrained_on_imagenet)
+    model: Module = ModelBuilder.build(settings_model.model_architecture,
+                                       settings_model.embedding_dim,
+                                       settings_model.pretrained_on_imagenet)
 
     print("Using {} model architecture.".format(model_architecture))
 
@@ -317,7 +177,7 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
                                                   settings_model.optimizer,
                                                   settings_model.learning_rate)
     if settings_data.checkpoint_path:
-        checkpoint = load_checkpoint(model, optimizer, output_dir_checkpoints)
+        checkpoint = load_checkpoint(output_dir_checkpoints, model, optimizer)
         model = checkpoint.model
         optimizer = checkpoint.optimizer
         start_epoch = checkpoint.epoch
@@ -350,6 +210,8 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
                                             distance_fn=l2_distance,
                                             batch_sample=batch_sample,
                                             margin=settings_model.triplet_loss_margin)
+            if result_train is None:
+                continue
 
             losses.append(result_train.loss)
             num_valid_training_triplets += result_train.num_triplets
@@ -369,7 +231,7 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
         epoch_time_end = time.time()
 
         # Print training statistics and add to log
-        print(f"epoch {epoch + 1}\t"
+        print(f"epoch {epoch}\t"
               f"avg_loss: {loss_epoch_average:.4f}\t"
               f"time: {(epoch_time_end - epoch_time_start) / 60:.3f} minutes\t"
               f"valid_triplets: {num_valid_training_triplets}")
@@ -381,6 +243,7 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
         figure_name = f"roc_epoch_{epoch}_triplet.png"
         figure_path = output_dir_plots.joinpath(figure_name)
         metrics: EvaluationMetrics = evaluate(model, l2_distance, data_loader_validate, figure_path)
+        pprint(dataclasses.asdict(metrics))
 
         tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
 
@@ -405,53 +268,6 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     total_time_elapsed = total_time_end - total_time_start
     print(f"Training finished"
           f"*** total time elapsed: {total_time_elapsed / 60:.2f} minutes.")
-
-
-@dataclass
-class EvaluationMetrics:
-    accuracy: float
-    precision: float
-    recall: float
-    roc_auc: float
-    tar: float
-    far: float
-    distance: float
-
-
-def evaluate(model: Module, distance_fn: Module, data_loader: DataLoader, figure_path: Path) \
-        -> EvaluationMetrics:
-    with torch.no_grad():
-        distances, labels = [], []
-
-        for batch_index, (data_a, data_b, label) in enumerate(tqdm(data_loader)):
-            data_a, data_b, label = data_a.cuda(), data_b.cuda(), label.cuda()
-
-            output_a, output_b = model(data_a), model(data_b)
-            distance = distance_fn(output_a, output_b)  # Euclidean distance
-
-            distances.append(distance.cpu().detach().numpy())
-            labels.append(label.cpu().detach().numpy())
-
-        labels = np.array([sublabel for label in labels for sublabel in label])
-        distances = np.array([subdist for distance in distances for subdist in distance])
-
-        (true_positive_rate, false_positive_rate,
-         precision, recall, accuracy,
-         roc_auc, best_distances, tar, far) = evaluate_lfw(distances=distances, labels=labels)
-
-        # Plot ROC curve
-        plot_roc_lfw(false_positive_rate=false_positive_rate,
-                     true_positive_rate=true_positive_rate,
-                     figure_name=str(figure_path))
-
-        # Print statistics and add to log
-        return EvaluationMetrics(accuracy=float(np.mean(accuracy)),
-                                 precision=float(np.mean(precision)),
-                                 recall=float(np.mean(recall)),
-                                 roc_auc=roc_auc,
-                                 tar=float(np.mean(tar)),
-                                 far=float(np.mean(far)),
-                                 distance=float(np.mean(best_distances)))
 
 
 def main():
