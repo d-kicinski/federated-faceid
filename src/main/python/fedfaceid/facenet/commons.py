@@ -42,6 +42,9 @@ class ModelBuilder:
                 embedding_dimension=embedding_dim,
                 pretrained=imagenet_pretrained
             )
+        elif model_architecture == "inceptionresnetv1":
+            model = models.InceptionResnetV1Triplet(
+                embedding_dimension=embedding_dim)
         elif model_architecture == "inception_resnet_v1_vggface2":
             model = models.InceptionResnetV1(pretrained="vggface2")
         elif model_architecture == "inception_resnet_v1_casia":

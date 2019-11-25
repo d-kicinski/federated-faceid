@@ -45,6 +45,7 @@ def parse_args():
                         default=ModelSettings.lfw_validation_epoch_interval)
     parser.add_argument("--model_architecture", type=str, choices=["resnet18", "resnet34",
                                                                    "resnet50", "resnet101",
+                                                                   "inceptionresnetv1",
                                                                    "inceptionresnetv2"],
                         default=ModelSettings.model_architecture)
     parser.add_argument("--epochs", type=int, default=ModelSettings.epochs)
