@@ -3,9 +3,9 @@ import dataclasses
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from pprint import pprint
-from typing import Optional, Mapping, Any, List
+from typing import Mapping, Any, List
 
+import numpy as np
 import torch
 from torch.nn import Module
 from torch.nn.modules.distance import PairwiseDistance
@@ -14,7 +14,10 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from commons import get_train_data_loader, get_validation_data_loader, ModelBuilder, load_checkpoint
+from commons import get_validation_data_loader, ModelBuilder, load_checkpoint
+from dataloaders import facemetadataset
+from dataloaders.facemetadataset import FaceMetaDataset, PeopleDataset, TripletsDataset, \
+    TripletIndexes
 from evaluation import EvaluationMetrics, evaluate
 from settings import DataSettings, ModelSettings
 
@@ -65,6 +68,18 @@ def parse_args():
     return parser.parse_args()
 
 
+class Tensorboard:
+    def __init__(self, log_path: Path):
+        self._writer = SummaryWriter(str(log_path))
+
+    def add_dict(self, dictionary: Mapping[str, Any], global_step: int):
+        for key, value in dictionary.items():
+            self._writer.add_scalar(key, value, global_step=global_step)
+
+    def add_scalar(self, name: str, value: float, global_step: int):
+        self._writer.add_scalar(name, value, global_step=global_step)
+
+
 class OptimizerBuilder:
     @staticmethod
     def build(model: Module, optimizer: str, learning_rate: float) -> Optimizer:
@@ -82,71 +97,125 @@ class OptimizerBuilder:
 @dataclass
 class TrainStepResults:
     loss: float
-    num_triplets: int
+    steps: int
 
 
-class TrainStep:
-    def __init__(self):
-        self.embedding_anc = None
-        self.embeddings_pos = None
-        self.embedding_neg = None
+class TrainEpoch:
+    def __init__(self,
+                 model: Module,
+                 dataset: FaceMetaDataset,
+                 dataset_eval_loader: DataLoader,
+                 optimizer: Optimizer,
+                 tensorboard: Tensorboard,
+                 loss_fn: Module,
+                 distance_fn: Module,
+                 settings_model: ModelSettings,
+                 global_step: int = 0):
+        self.model = model
+        self.dataset = dataset
+        self.optimizer = optimizer
+        self.loss_fn = loss_fn
+        self.distance_fn = distance_fn
+        self.settings = settings_model
+        self.tensorboard = tensorboard
+        self.dataset_eval_loader = dataset_eval_loader
 
-    def __call__(self, *args, **kwargs):
-        return self.model_train_step(*args, **kwargs)
+        self.global_step: int = global_step
 
-    def model_train_step(self,
-                         model: Module,
-                         optimizer: Optimizer,
-                         loss_fn: Module,
-                         distance_fn: Module,
-                         batch_sample: Any,
-                         margin: float) -> Optional[TrainStepResults]:
-        image_anc = batch_sample["anc_img"].cuda()
-        image_pos = batch_sample["pos_img"].cuda()
-        image_neg = batch_sample["neg_img"].cuda()
+        self.log_every_step: int = 10
+        self.evaluate_every_step: int = 310
 
-        # Forward pass - compute embeddings
-        embedding_anc = model(image_anc)
-        embedding_pos = model(image_pos)
-        embedding_neg = model(image_neg)
+    def train_for_epoch(self):
+        self.model.train()
 
-        # Forward pass - choose hard negatives only for training
-        distance_pos = distance_fn(embedding_anc, embedding_pos)
-        distance_neg = distance_fn(embedding_anc, embedding_neg)
+        num_batches: int = 0
+        while num_batches < self.settings.batches_in_epoch:
+            print("Selecting people")
+            people_dataset: PeopleDataset = facemetadataset.select_people(
+                self.dataset,
+                self.settings.people_per_batch,
+                self.settings.images_per_person
+            )
 
-        distance_difference = (distance_neg - distance_pos) < margin
+            print("Calculating embeddings")
+        self.model.eval()
+            with torch.no_grad():
+                embeddings: np.array = self.calculate_embeddings(self.model, people_dataset)
 
-        hard_triplets = torch.where(distance_difference == 1)
-        if len(hard_triplets) == 0:
-            return None
+                triplets: List[TripletIndexes] = facemetadataset.select_triplets(
+                    embeddings,
+                    people_dataset.num_images_per_class,
+                    self.settings.people_per_batch,
+                    self.settings.triplet_loss_margin
+                )
 
-        embedding_anc_hard = embedding_anc[hard_triplets]
-        embedding_pos_hard = embedding_pos[hard_triplets]
-        embedding_neg_hard = embedding_neg[hard_triplets]
+            triplet_dataset = TripletsDataset(triplets, people_dataset)
 
-        # Calculate triplet loss
-        triplet_loss = loss_fn(anchor=embedding_anc_hard,
-                               positive=embedding_pos_hard,
-                               negative=embedding_neg_hard).cuda()
+            self.model.train()
+            results: TrainStepResults = self.train_step(triplet_dataset)
+            num_batches += results.steps
 
-        # Backward pass
-        optimizer.zero_grad()
-        triplet_loss.backward()
-        optimizer.step()
+    def train_step(self, triplet_dataset: TripletsDataset) -> TrainStepResults:
+        losses: List[float] = []
+        local_step: int = 0
 
-        return TrainStepResults(triplet_loss.item(), len(embedding_anc_hard))
+        triplet_loader = DataLoader(triplet_dataset,
+                                    batch_size=self.settings.batch_size,
+                                    shuffle=True)
 
+        num_batches = int(np.ceil(len(triplet_dataset) / self.settings.batch_size))
+        for triplets in tqdm(triplet_loader, total=num_batches):
+            # Calculate triplet loss
+            triplet_loss = self.loss_fn(anchor=self.model(triplets["anchor"].cuda()),
+                                        positive=self.model(triplets["positive"].cuda()),
+                                        negative=self.model(triplets["negative"].cuda())).cuda()
 
-class Tensorboard:
-    def __init__(self, log_path: Path):
-        self._writer = SummaryWriter(str(log_path))
+            # Backward pass
+            self.optimizer.zero_grad()
+            triplet_loss.backward()
+            self.optimizer.step()
 
-    def add_dict(self, dictionary: Mapping[str, Any], global_step: int):
-        for key, value in dictionary.items():
-            self._writer.add_scalar(key, value, global_step=global_step)
+            self.global_step += 1
+            local_step += 1
+            losses.append(triplet_loss.item())
 
-    def add_scalar(self, name: str, value: float, global_step: int):
-        self._writer.add_scalar(name, value, global_step=global_step)
+            if self.global_step % self.log_every_step == 0:
+                self.tensorboard.add_scalar(name="loss_train",
+                                            value=sum(losses[-self.log_every_step:]) / len(losses),
+                                            global_step=self.global_step)
+                losses: List[float] = []
+            if self.global_step % self.evaluate_every_step == 0:
+                print("Validating on LFW!")
+                self.model.eval()
+
+                metrics: EvaluationMetrics = evaluate(self.model,
+                                                      self.distance_fn,
+                                                      self.dataset_eval_loader,
+                                                      None)
+                self.tensorboard.add_dict(dataclasses.asdict(metrics), self.global_step)
+                self.model.train()
+
+        return TrainStepResults(0.0, local_step)
+
+    def calculate_embeddings(self, model: Module, dataset: PeopleDataset):
+        image_loader = DataLoader(dataset,
+                                  batch_size=self.settings.batch_size,
+                                  shuffle=False)
+        num_examples = len(dataset)
+
+        embeddings = np.zeros((num_examples, self.settings.embedding_dim))
+
+        start_idx = 0
+
+        for i, image in tqdm(enumerate(image_loader)):
+            batch_size = min(num_examples - i * self.settings.batch_size, self.settings.batch_size)
+            image = image.cuda()
+            embedding = model(image).cpu().detach().numpy()
+            embeddings[start_idx: start_idx + batch_size, :] = embedding
+
+            start_idx += self.settings.batch_size
+
+        return embeddings
 
 
 def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
@@ -165,7 +234,6 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     start_epoch: int = 0
     global_step: int = 0
 
-    data_loader_train: DataLoader = get_train_data_loader(settings_model, settings_data)
     data_loader_validate: DataLoader = get_validation_data_loader(settings_model, settings_data)
 
     model: Module = ModelBuilder.build(settings_model.model_architecture,
@@ -190,78 +258,31 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
         global_step = checkpoint.global_step
 
     # Start Training loop
-    print(f"Training using triplet loss on {settings_model.num_triplets_train} triplets"
-          f" starting for {settings_model.epochs - start_epoch} epoch")
 
     total_time_start = time.time()
     end_epoch = start_epoch + settings_model.epochs
 
+    face_meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_dir,
+                                        csv_name=settings_data.dataset_csv_file)
     l2_distance = PairwiseDistance(2).cuda()
     loss_fn = torch.nn.TripletMarginLoss(margin=settings_model.triplet_loss_margin,
                                          reduction="mean")
     tensorboard = Tensorboard(output_dir_tensorboard)
-    train_step = TrainStep()
+    train_step = TrainEpoch(model=model,
+                            dataset=face_meta_dataset,
+                            dataset_eval_loader=data_loader_validate,
+                            distance_fn=l2_distance,
+                            loss_fn=loss_fn,
+                            optimizer=optimizer,
+                            tensorboard=tensorboard,
+                            settings_model=settings_model,
+                            global_step=global_step)
 
     for epoch in range(start_epoch, end_epoch):
-        epoch_time_start = time.time()
-
-        losses: List[float] = []
-        num_valid_triplets: List[int] = []
-
         # Training pass
-        model.train()
-
-        for batch_idx, (batch_sample) in enumerate(tqdm(data_loader_train)):
-            result_train = train_step(model=model,
-                                      optimizer=optimizer,
-                                      loss_fn=loss_fn,
-                                      distance_fn=l2_distance,
-                                      batch_sample=batch_sample,
-                                      margin=settings_model.triplet_loss_margin)
-            if result_train is None:
-                continue
-
-            losses.append(result_train.loss)
-            num_valid_triplets.append(result_train.num_triplets)
-
-            if batch_idx % 10 == 0:
-                tensorboard.add_scalar(name="loss_train",
-                                       value=sum(losses[-10:]) / 10,
-                                       global_step=global_step)
-
-                tensorboard.add_scalar(name="num_valid_triplets",
-                                       value=sum(num_valid_triplets[-10:]) / 10,
-                                       global_step=global_step)
-
-            if batch_idx % 1000 == 0:
-                model.eval()
-                metrics: EvaluationMetrics = evaluate(model, l2_distance, data_loader_validate)
-                tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
-                model.train()
-
-            global_step += 1
-
-        # Model only trains on hard negative triplets
-        loss_epoch_average = sum(losses) / len(losses)
-
-        epoch_time_end = time.time()
-
-        # Print training statistics and add to log
-        print(f"epoch {epoch}\t"
-              f"avg_loss: {loss_epoch_average:.4f}\t"
-              f"time: {(epoch_time_end - epoch_time_start) / 60:.3f} minutes\t"
-              f"valid_triplets: {sum(num_valid_triplets)}")
-
-        # Evaluation pass on LFW dataset
-        print("Validating on LFW!")
-        model.eval()
-
-        figure_name = f"roc_epoch_{epoch}_triplet.png"
-        figure_path = output_dir_plots.joinpath(figure_name)
-        metrics: EvaluationMetrics = evaluate(model, l2_distance, data_loader_validate, figure_path)
-        pprint(dataclasses.asdict(metrics))
-
-        tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
+        train_step.model.train()
+        train_step.train_for_epoch()
+        global_step = train_step.global_step
 
         # Save model checkpoint
         state = {
@@ -272,18 +293,11 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
             "batch_size_training": settings_model.batch_size,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
-            # "best_distance_threshold": np.mean(best_distances)
         }
 
         # Save model checkpoint
         checkpoint_name = f"{model_architecture}_{epoch}.pt"
         torch.save(state, output_dir_checkpoints.joinpath(checkpoint_name))
-
-    # Training loop end
-    total_time_end = time.time()
-    total_time_elapsed = total_time_end - total_time_start
-    print(f"Training finished"
-          f"*** total time elapsed: {total_time_elapsed / 60:.2f} minutes.")
 
 
 def main():
