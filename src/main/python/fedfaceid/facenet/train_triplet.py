@@ -99,7 +99,8 @@ class TrainStep:
                          optimizer: Optimizer,
                          loss_fn: Module,
                          distance_fn: Module,
-                         batch_sample) -> Optional[TrainStepResults]:
+                         batch_sample: Any,
+                         margin: float) -> Optional[TrainStepResults]:
         image_anc = batch_sample["anc_img"].cuda()
         image_pos = batch_sample["pos_img"].cuda()
         image_neg = batch_sample["neg_img"].cuda()
@@ -113,7 +114,7 @@ class TrainStep:
         distance_pos = distance_fn(embedding_anc, embedding_pos)
         distance_neg = distance_fn(embedding_anc, embedding_neg)
 
-        distance_difference = (distance_pos - distance_neg) < 0
+        distance_difference = (distance_neg - distance_pos) < margin
 
         hard_triplets = torch.where(distance_difference == 1)
         if len(hard_triplets) == 0:
@@ -215,7 +216,8 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
                                       optimizer=optimizer,
                                       loss_fn=loss_fn,
                                       distance_fn=l2_distance,
-                                      batch_sample=batch_sample)
+                                      batch_sample=batch_sample,
+                                      margin=settings_model.triplet_loss_margin)
             if result_train is None:
                 continue
 
