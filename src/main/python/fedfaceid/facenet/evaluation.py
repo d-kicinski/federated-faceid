@@ -45,7 +45,7 @@ def evaluate(model: Module, distance_fn: Module, data_loader: DataLoader,
          roc_auc, best_distances, tar, far) = evaluate_lfw(distances=distances, labels=labels)
 
         # Plot ROC curve
-        if figure_path is None:
+        if figure_path is not None:
             plot_roc_lfw(false_positive_rate=false_positive_rate,
                          true_positive_rate=true_positive_rate,
                          figure_name=str(figure_path))

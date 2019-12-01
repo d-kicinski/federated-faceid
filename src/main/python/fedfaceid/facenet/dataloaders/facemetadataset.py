@@ -5,7 +5,6 @@ from typing import Optional, Callable, List
 
 import PIL
 import numpy as np
-import torch
 from PIL.Image import Image
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -169,8 +168,7 @@ def select_triplets(embedding: Tensor,
                     num_images_per_class: List[int],
                     people_per_batch: int,
                     alpha: float) -> List[TripletIndexes]:
-    """ Select the triplets for training
-    """
+    """ Select the triplets for training"""
 
     idx_embedding_start: int = 0
     triplets: List[TripletIndexes] = []
@@ -182,33 +180,32 @@ def select_triplets(embedding: Tensor,
     # latter is a form of hard-negative mining, but it is not as aggressive (and much cheaper)
     # than choosing the maximally violating example, as often done in structured output learning.
 
-    with torch.no_grad():
-        for i_person in range(people_per_batch):
-            num_images_in_class = int(num_images_per_class[i_person])
-            for j_image in range(num_images_in_class):
-                idx_anchor = idx_embedding_start + j_image
+    for i_person in range(people_per_batch):
+        num_images_in_class = int(num_images_per_class[i_person])
+        for j_image in range(num_images_in_class):
+            idx_anchor = idx_embedding_start + j_image
 
-                # calculate distances of each image to current anchor and mask inter class distances
-                distances_neg = np.sum(np.square(embedding[idx_anchor] - embedding), axis=1)
-                distances_neg[
-                idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
+            # calculate distances of each image to current anchor and mask inter class distances
+            distances_neg = np.sum(np.square(embedding[idx_anchor] - embedding), axis=1)
+            distances_neg[
+            idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
 
-                # For every possible positive  pair.
-                for k_image in range(j_image + 1, num_images_in_class):
-                    idx_pos = idx_embedding_start + k_image
+            # For every possible positive  pair.
+            for k_image in range(j_image + 1, num_images_in_class):
+                idx_pos = idx_embedding_start + k_image
 
-                    distance_pos = np.sum(np.square(
-                        embedding[idx_anchor] - embedding[idx_pos]
-                    ))
+                distance_pos = np.sum(np.square(
+                    embedding[idx_anchor] - embedding[idx_pos]
+                ))
 
-                    all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
-                    num_neg = all_neg.shape[0]
+                all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
+                num_neg = all_neg.shape[0]
 
-                    if num_neg > 0:
-                        idx_neg = all_neg[np.random.randint(num_neg)]
-                        triplets.append(TripletIndexes(idx_anchor,
-                                                       idx_pos,
-                                                       idx_neg))
+                if num_neg > 0:
+                    idx_neg = all_neg[np.random.randint(num_neg)]
+                    triplets.append(TripletIndexes(idx_anchor,
+                                                   idx_pos,
+                                                   idx_neg))
 
-            idx_embedding_start += num_images_in_class
+        idx_embedding_start += num_images_in_class
     return triplets

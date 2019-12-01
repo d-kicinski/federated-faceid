@@ -21,10 +21,10 @@ class ModelSettings:
     model_architecture: str = "resnet34"
     optimizer: str = "adam"
 
-    epochs: int = 100
+    epochs: int = 500
     batch_size: int = 64
     learning_rate: float = 0.001
-    embedding_dim: int = 128
+    embedding_dim: int = 512
     triplet_loss_margin: float = 0.2
     pretrained_on_imagenet: bool = False
 
@@ -32,5 +32,5 @@ class ModelSettings:
     num_workers: int = 4
 
     people_per_batch: int = 40
-    images_per_person: int = 40
-    batches_in_epoch: int = 200
+    images_per_person: int = 45
+    batches_in_epoch: int = 1_240
