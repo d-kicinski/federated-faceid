@@ -6,6 +6,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import Mapping, Any, List
 
+import numpy as np
 import torch
 from apex import amp
 from torch.nn import Module
@@ -18,6 +19,9 @@ from tqdm import tqdm
 from commons import get_train_data_loader, get_validation_data_loader, ModelBuilder, load_checkpoint
 from evaluation import EvaluationMetrics, evaluate
 from settings import DataSettings, ModelSettings
+
+np.random.seed(0)
+torch.manual_seed(0)
 
 
 def parse_args():
@@ -250,7 +254,7 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
         # Training pass
         train_step.model.train()
 
-        for batch_idx, (batch_sample) in enumerate(tqdm(data_loader_train)):
+        for batch_sample in tqdm(data_loader_train):
             result_train = train_step(batch_sample=batch_sample)
             if result_train is None:
                 continue
@@ -258,12 +262,12 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
             losses.append(result_train.loss)
             num_valid_triplets.append(result_train.num_triplets)
 
-            if batch_idx % 100 == 0:
+            if global_step % 100 == 0:
                 tensorboard.add_scalar(name="loss_train",
                                        value=sum(losses[-100:]) / len(losses),
                                        global_step=global_step)
 
-            if batch_idx % 1000 == 0:
+            if global_step % 1000 == 0:
                 try:
                     train_step.model.eval()
                     metrics: EvaluationMetrics = evaluate(train_step.model, l2_distance,

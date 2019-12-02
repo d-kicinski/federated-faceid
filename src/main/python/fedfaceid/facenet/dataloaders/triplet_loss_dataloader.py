@@ -7,7 +7,9 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from tqdm import tqdm
+
+np.random.seed(0)
+torch.manual_seed(0)
 
 
 class TripletFaceDataset(Dataset):
@@ -15,76 +17,61 @@ class TripletFaceDataset(Dataset):
                  root_dir: Path,
                  csv_name: Path,
                  num_triplets: int,
-                 training_triplets_path: Path,
                  transform: Optional[Callable] = None):
 
-        self.df: pd.DataFrame = pd.read_csv(str(csv_name.resolve()),
-                                            dtype={'id': object, 'name': object, 'class': int})
         self.root_dir: Path = root_dir
         self.num_triplets: int = num_triplets
         self.transform: Optional[Callable] = transform
-        self.training_triplets = np.load(str(training_triplets_path))
 
-    @staticmethod
-    def generate_triplets(df: pd.DataFrame, num_triplets: int, output_path: Path):
+        self.df: pd.DataFrame = pd.read_csv(str(csv_name.resolve()),
+                                            dtype={'id': object, 'name': object, 'class': int})
+        self.classes = self.df['class'].unique()
 
-        triplets = []
-        classes = df['class'].unique()
-        face_classes = TripletFaceDataset._make_dictionary_for_face_class(df)
+        self.face_classes = TripletFaceDataset._make_dictionary_for_face_class(self.df)
 
-        # Modified here to add a print statement
-        print("\nGenerating {} triplets...".format(num_triplets))
+    def generate_triplet(self):
 
-        progress_bar = tqdm(range(num_triplets))
-        for _ in progress_bar:
-            """
-            - randomly choose anchor, positive and negative images for triplet loss
-            - anchor and positive images in pos_class
-            - negative image in neg_class
-            - at least, two images needed for anchor and positive images in pos_class
-            - negative image should have different class as anchor and positive images by definition
-            """
+        """
+        - randomly choose anchor, positive and negative images for triplet loss
+        - anchor and positive images in pos_class
+        - negative image in neg_class
+        - at least, two images needed for anchor and positive images in pos_class
+        - negative image should have different class as anchor and positive images by definition
+        """
 
-            pos_class = np.random.choice(classes)
-            neg_class = np.random.choice(classes)
+        pos_class = np.random.choice(self.classes)
+        neg_class = np.random.choice(self.classes)
 
-            while len(face_classes[pos_class]) < 2:
-                pos_class = np.random.choice(classes)
+        while len(self.face_classes[pos_class]) < 2:
+            pos_class = np.random.choice(self.classes)
 
-            while pos_class == neg_class:
-                neg_class = np.random.choice(classes)
+        while pos_class == neg_class:
+            neg_class = np.random.choice(self.classes)
 
-            pos_name = df.loc[df['class'] == pos_class, 'name'].values[0]
-            neg_name = df.loc[df['class'] == neg_class, 'name'].values[0]
+        pos_name = self.df.loc[self.df['class'] == pos_class, 'name'].values[0]
+        neg_name = self.df.loc[self.df['class'] == neg_class, 'name'].values[0]
 
-            if len(face_classes[pos_class]) == 2:
-                ianc, ipos = np.random.choice(2, size=2, replace=False)
+        if len(self.face_classes[pos_class]) == 2:
+            ianc, ipos = np.random.choice(2, size=2, replace=False)
 
-            else:
-                ianc = np.random.randint(0, len(face_classes[pos_class]))
-                ipos = np.random.randint(0, len(face_classes[pos_class]))
+        else:
+            ianc = np.random.randint(0, len(self.face_classes[pos_class]))
+            ipos = np.random.randint(0, len(self.face_classes[pos_class]))
 
-                while ianc == ipos:
-                    ipos = np.random.randint(0, len(face_classes[pos_class]))
+            while ianc == ipos:
+                ipos = np.random.randint(0, len(self.face_classes[pos_class]))
 
-            ineg = np.random.randint(0, len(face_classes[neg_class]))
+        ineg = np.random.randint(0, len(self.face_classes[neg_class]))
 
-            triplets.append(
-                [
-                    face_classes[pos_class][ianc],
-                    face_classes[pos_class][ipos],
-                    face_classes[neg_class][ineg],
-                    pos_class,
-                    neg_class,
-                    pos_name,
-                    neg_name
-                ]
-            )
+        triplet = (self.face_classes[pos_class][ianc],
+                   self.face_classes[pos_class][ipos],
+                   self.face_classes[neg_class][ineg],
+                   pos_class,
+                   neg_class,
+                   pos_name,
+                   neg_name)
 
-        print(f"Saving training triplets list in ${output_path} directory")
-        np.save(str(output_path), triplets)
-
-        return triplets
+        return triplet
 
     @staticmethod
     def _make_dictionary_for_face_class(df: pd.DataFrame) -> Dict[str, List[int]]:
@@ -101,7 +88,7 @@ class TripletFaceDataset(Dataset):
 
         (anc_id, pos_id, neg_id,
          pos_class, neg_class,
-         pos_name, neg_name) = self.training_triplets[idx]
+         pos_name, neg_name) = self.generate_triplet()
 
         anc_img = _add_extension(self.root_dir.joinpath(str(pos_name), str(anc_id)))
         pos_img = _add_extension(self.root_dir.joinpath(str(pos_name), str(pos_id)))
@@ -131,7 +118,7 @@ class TripletFaceDataset(Dataset):
         return sample
 
     def __len__(self):
-        return len(self.training_triplets)
+        return self.num_triplets
 
 
 def _add_extension(path: Path) -> Path:

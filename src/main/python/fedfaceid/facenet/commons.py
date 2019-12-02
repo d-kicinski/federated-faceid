@@ -114,11 +114,10 @@ def get_train_data_loader(settings_model: ModelSettings,
         dataset=TripletFaceDataset(root_dir=settings_data.dataset_dir,
                                    csv_name=settings_data.dataset_csv_file,
                                    num_triplets=settings_model.num_triplets_train,
-                                   training_triplets_path=settings_data.training_triplets_path,
                                    transform=transforms_train),
         batch_size=settings_model.batch_size,
         num_workers=settings_model.num_workers,
-        shuffle=False
+        shuffle=True
     )
     return data_loader_train
 

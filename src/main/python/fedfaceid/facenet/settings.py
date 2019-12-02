@@ -28,5 +28,5 @@ class ModelSettings:
     triplet_loss_margin: float = 0.5
     pretrained_on_imagenet: bool = False
 
-    num_triplets_train: int = 100_000
-    num_workers: int = 4
+    num_triplets_train: int = 1_000_000
+    num_workers: int = 6
