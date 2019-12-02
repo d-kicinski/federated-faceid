@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 import torch
+from apex import amp
 from torch.nn import Module
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
@@ -65,7 +66,8 @@ class CheckpointValue:
 
 def load_checkpoint(checkpoint_path: Path,
                     model: Optional[Module] = None,
-                    optimizer: Optional[Optimizer] = None) -> CheckpointValue:
+                    optimizer: Optional[Optimizer] = None,
+                    load_amp: bool = False) -> CheckpointValue:
     if not checkpoint_path.exists():
         raise ValueError(f"Checkpoint {checkpoint_path} doesnt exist!")
 
@@ -82,6 +84,9 @@ def load_checkpoint(checkpoint_path: Path,
 
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    if load_amp:
+        amp.load_state_dict(checkpoint['amp_state_dict'])
 
     epoch = checkpoint["epoch"]
     global_step = checkpoint.get("global_step", 0)

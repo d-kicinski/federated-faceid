@@ -22,7 +22,7 @@ class ModelSettings:
     optimizer: str = "adam"
 
     epochs: int = 30
-    batch_size: int = 64
+    batch_size: int = 48
     learning_rate: float = 0.001
     embedding_dim: int = 128
     triplet_loss_margin: float = 0.5

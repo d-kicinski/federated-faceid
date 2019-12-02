@@ -9,10 +9,8 @@ python3 ./fedfaceid/facenet/train_triplet.py \
     --model_architecture "inceptionresnetv1" \
     --optimizer "adam" \
     --learning_rate 0.003 \
-    --output_dir "../../../output_dir_inception_semihard_02_million_margin_cached_2" \
-    --checkpoint_path "../../../output_dir_inception_semihard_02_million_margin_cached_2/checkpoints/inceptionresnetv1_6.pt" \
+    --output_dir "../../../output_dir/inception_v1_static_triplets" \
     --dataset_dir "../../../data/vggface2/train_cropped" \
     --lfw_dir "../../../data/lfw/data" \
     --dataset_csv_file "../../../data/vggface2/train_cropped_meta.csv" \
     --training_triplets_path "../../../data/vggface2/train_triplets_1000000.npy"
-

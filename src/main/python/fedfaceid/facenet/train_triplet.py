@@ -4,9 +4,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
-from typing import Optional, Mapping, Any, List
+from typing import Mapping, Any, List
 
 import torch
+from apex import amp
 from torch.nn import Module
 from torch.nn.modules.distance import PairwiseDistance
 from torch.optim.optimizer import Optimizer
@@ -86,55 +87,86 @@ class TrainStepResults:
 
 
 class TrainStep:
-    def __init__(self):
-        self.embedding_anc = None
-        self.embeddings_pos = None
-        self.embedding_neg = None
+    def __init__(self,
+                 settings_model: ModelSettings,
+                 model: Module,
+                 optimizer: Optimizer,
+                 loss_fn: Module,
+                 distance_fn: Module):
+        self.image_anc = None
+        self.image_pos = None
+        self.image_neg = None
+
+        self.model = model
+        self.optimizer: Optimizer = optimizer
+        self.loss_fn: Module = loss_fn
+        self.distance_fn: Module = distance_fn
+
+        self.settings = settings_model
 
     def __call__(self, *args, **kwargs):
         return self.model_train_step(*args, **kwargs)
 
-    def model_train_step(self,
-                         model: Module,
-                         optimizer: Optimizer,
-                         loss_fn: Module,
-                         distance_fn: Module,
-                         batch_sample: Any,
-                         margin: float) -> Optional[TrainStepResults]:
+    def model_train_step(self, batch_sample: Any) -> Any:
         image_anc = batch_sample["anc_img"].cuda()
         image_pos = batch_sample["pos_img"].cuda()
         image_neg = batch_sample["neg_img"].cuda()
 
         # Forward pass - compute embeddings
-        embedding_anc = model(image_anc)
-        embedding_pos = model(image_pos)
-        embedding_neg = model(image_neg)
+        embedding_anc = self.model(image_anc)
+        embedding_pos = self.model(image_pos)
+        embedding_neg = self.model(image_neg)
 
         # Forward pass - choose hard negatives only for training
-        distance_pos = distance_fn(embedding_anc, embedding_pos)
-        distance_neg = distance_fn(embedding_anc, embedding_neg)
+        distance_pos = self.distance_fn(embedding_anc, embedding_pos)
+        distance_neg = self.distance_fn(embedding_anc, embedding_neg)
 
-        distance_difference = (distance_neg - distance_pos) < margin
+        distance_difference = (distance_neg - distance_pos) < self.settings.triplet_loss_margin
 
         hard_triplets = torch.where(distance_difference == 1)
         if len(hard_triplets) == 0:
             return None
 
-        embedding_anc_hard = embedding_anc[hard_triplets]
-        embedding_pos_hard = embedding_pos[hard_triplets]
-        embedding_neg_hard = embedding_neg[hard_triplets]
+        image_anc = image_anc[hard_triplets]
+        image_pos = image_pos[hard_triplets]
+        image_neg = image_neg[hard_triplets]
 
-        # Calculate triplet loss
-        triplet_loss = loss_fn(anchor=embedding_anc_hard,
-                               positive=embedding_pos_hard,
-                               negative=embedding_neg_hard).cuda()
+        if self.image_anc is None:
+            self.image_anc = image_anc
+            self.image_pos = image_pos
+            self.image_neg = image_neg
+        else:
+            self.image_anc = torch.cat([self.image_anc, image_anc], dim=0)
+            self.image_pos = torch.cat([self.image_pos, image_pos], dim=0)
+            self.image_neg = torch.cat([self.image_neg, image_neg], dim=0)
 
+        if len(self.image_anc) < self.settings.batch_size:
+            return None
+
+        image_anc = self.image_anc[:self.settings.batch_size]
+        self.image_anc = self.image_anc[self.settings.batch_size:]
+
+        image_pos = self.image_pos[:self.settings.batch_size]
+        self.image_pos = self.image_pos[self.settings.batch_size:]
+
+        image_neg = self.image_neg[:self.settings.batch_size]
+        self.image_neg = self.image_neg[self.settings.batch_size:]
+
+        # Forward pass - compute hard embeddings
+        embedding_anc = self.model(image_anc)
+        embedding_pos = self.model(image_pos)
+        embedding_neg = self.model(image_neg)
+
+        triplet_loss = self.loss_fn(anchor=embedding_anc,
+                                    positive=embedding_pos,
+                                    negative=embedding_neg).cuda()
         # Backward pass
-        optimizer.zero_grad()
-        triplet_loss.backward()
-        optimizer.step()
+        self.optimizer.zero_grad()
+        with amp.scale_loss(triplet_loss, self.optimizer) as scaled_loss:
+            scaled_loss.backward()
+        self.optimizer.step()
 
-        return TrainStepResults(triplet_loss.item(), len(embedding_anc_hard))
+        return TrainStepResults(triplet_loss.item(), len(image_anc))
 
 
 class Tensorboard:
@@ -182,8 +214,14 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     optimizer: Optimizer = OptimizerBuilder.build(model,
                                                   settings_model.optimizer,
                                                   settings_model.learning_rate)
+
+    model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
+
     if settings_data.checkpoint_path:
-        checkpoint = load_checkpoint(output_dir_checkpoints, model, optimizer)
+        checkpoint = load_checkpoint(settings_data.checkpoint_path,
+                                     model,
+                                     optimizer,
+                                     load_amp=True)
         model = checkpoint.model
         optimizer = checkpoint.optimizer
         start_epoch = checkpoint.epoch
@@ -200,7 +238,8 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
     loss_fn = torch.nn.TripletMarginLoss(margin=settings_model.triplet_loss_margin,
                                          reduction="mean")
     tensorboard = Tensorboard(output_dir_tensorboard)
-    train_step = TrainStep()
+
+    train_step = TrainStep(settings_model, model, optimizer, loss_fn, l2_distance)
 
     for epoch in range(start_epoch, end_epoch):
         epoch_time_start = time.time()
@@ -209,35 +248,31 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
         num_valid_triplets: List[int] = []
 
         # Training pass
-        model.train()
+        train_step.model.train()
 
         for batch_idx, (batch_sample) in enumerate(tqdm(data_loader_train)):
-            result_train = train_step(model=model,
-                                      optimizer=optimizer,
-                                      loss_fn=loss_fn,
-                                      distance_fn=l2_distance,
-                                      batch_sample=batch_sample,
-                                      margin=settings_model.triplet_loss_margin)
+            result_train = train_step(batch_sample=batch_sample)
             if result_train is None:
                 continue
 
             losses.append(result_train.loss)
             num_valid_triplets.append(result_train.num_triplets)
 
-            if batch_idx % 10 == 0:
+            if batch_idx % 100 == 0:
                 tensorboard.add_scalar(name="loss_train",
-                                       value=sum(losses[-10:]) / 10,
-                                       global_step=global_step)
-
-                tensorboard.add_scalar(name="num_valid_triplets",
-                                       value=sum(num_valid_triplets[-10:]) / 10,
+                                       value=sum(losses[-100:]) / len(losses),
                                        global_step=global_step)
 
             if batch_idx % 1000 == 0:
-                model.eval()
-                metrics: EvaluationMetrics = evaluate(model, l2_distance, data_loader_validate)
-                tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
-                model.train()
+                try:
+                    train_step.model.eval()
+                    metrics: EvaluationMetrics = evaluate(train_step.model, l2_distance,
+                                                          data_loader_validate)
+                    tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
+                except Exception as e:
+                    print(e)
+
+                train_step.model.train()
 
             global_step += 1
 
@@ -254,14 +289,19 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
 
         # Evaluation pass on LFW dataset
         print("Validating on LFW!")
-        model.eval()
+        try:
+            train_step.model.eval()
 
-        figure_name = f"roc_epoch_{epoch}_triplet.png"
-        figure_path = output_dir_plots.joinpath(figure_name)
-        metrics: EvaluationMetrics = evaluate(model, l2_distance, data_loader_validate, figure_path)
-        pprint(dataclasses.asdict(metrics))
+            figure_name = f"roc_epoch_{epoch}_triplet.png"
+            figure_path = output_dir_plots.joinpath(figure_name)
+            metrics: EvaluationMetrics = evaluate(train_step.model, l2_distance,
+                                                  data_loader_validate,
+                                                  figure_path)
+            pprint(dataclasses.asdict(metrics))
 
-        tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
+            tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
+        except Exception as e:
+            print(e)
 
         # Save model checkpoint
         state = {
@@ -270,9 +310,9 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
             "global_step": global_step,
             "embedding_dimension": settings_model.embedding_dim,
             "batch_size_training": settings_model.batch_size,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            # "best_distance_threshold": np.mean(best_distances)
+            "model_state_dict": train_step.model.state_dict(),
+            "optimizer_state_dict": train_step.optimizer.state_dict(),
+            "amp_state_dict": amp.state_dict()
         }
 
         # Save model checkpoint
