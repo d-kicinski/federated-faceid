@@ -8,8 +8,8 @@ from torch.nn import Module
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 
-from plots import plot_roc_lfw
-from validate_on_LFW import evaluate_lfw
+from facenet.plots import plot_roc_lfw
+from facenet.validate_on_LFW import evaluate_lfw
 
 
 @dataclass

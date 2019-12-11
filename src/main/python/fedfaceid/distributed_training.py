@@ -42,10 +42,7 @@ class EdgeDeviceSettings:
     batches_in_epoch: int
     embedding_dim: int
     learning_rate: float
-    learning_rate_decay: float
     loss_margin: float
-
-    device: str
 
     num_local_images_to_use: int
     num_remote_images_to_use: int
@@ -191,10 +188,8 @@ def federated_training(model: Module,
 
     settings_edge_device = EdgeDeviceSettings(
         epochs=settings_federated.num_local_epochs,
-        batch_size=settings_federated.num_local_batch,
+        batch_size=settings_model.batch_size,
         learning_rate=settings_model.learning_rate,
-        learning_rate_decay=settings_federated.learning_rate_decay,
-        device=settings_federated.device,
         batches_in_epoch=settings_model.batches_in_epoch,
         loss_margin=settings_model.triplet_loss_margin,
         embedding_dim=settings_model.embedding_dim,
@@ -306,10 +301,12 @@ def train(settings_model: ModelSettings,
     # Start Training loop
 
     face_local__meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_local_dir,
-                                               csv_name=settings_data.dataset_local_csv_file)
+                                               csv_name=settings_data.dataset_local_csv_file,
+                                               min_images_per_class=2)
 
     face_remote_meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_remote_dir,
-                                               csv_name=settings_data.dataset_remote_csv_file)
+                                               csv_name=settings_data.dataset_remote_csv_file,
+                                               min_images_per_class=1)
 
     l2_distance = PairwiseDistance(2).cuda()
 

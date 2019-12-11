@@ -14,12 +14,12 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from commons import get_validation_data_loader, ModelBuilder, load_checkpoint
-from dataloaders import facemetadataset
-from dataloaders.facemetadataset import FaceMetaDataset, PeopleDataset, TripletsDataset, \
+from facenet.commons import get_validation_data_loader, ModelBuilder, load_checkpoint
+from facenet.dataloaders import facemetadataset
+from facenet.dataloaders.facemetadataset import FaceMetaDataset, PeopleDataset, TripletsDataset, \
     TripletIndexes
-from evaluation import EvaluationMetrics, evaluate
-from settings import DataSettings, ModelSettings
+from facenet.evaluation import EvaluationMetrics, evaluate
+from facenet.settings import DataSettings, ModelSettings
 
 
 def parse_args():

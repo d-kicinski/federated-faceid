@@ -12,9 +12,11 @@ NUM_WORKERS: int = 6
 DATA_DIR: str = "../../../data/vggface2/train"
 
 
-def preprocess_vggface2(data_dir: Union[Path, str], num_workers: int, batch_size: int,
+def preprocess_vggface2(data_dir: Union[Path, str], output_dir: Union[Path, str],
+                        num_workers: int, batch_size: int,
                         image_size: int, margin: int, use_cpu: bool):
     data_dir = str(data_dir)
+    output_dir = str(output_dir)
 
     if use_cpu:
         device = "cpu"
@@ -29,7 +31,7 @@ def preprocess_vggface2(data_dir: Union[Path, str], num_workers: int, batch_size
 
     dataset = datasets.ImageFolder(data_dir, transform=transforms.Resize((512, 512)))
     dataset.samples = [
-        (p, p.replace(data_dir, data_dir + "_cropped"))
+        (p, p.replace(data_dir, output_dir))
         for p, _ in dataset.samples
     ]
 
@@ -47,6 +49,7 @@ def preprocess_vggface2(data_dir: Union[Path, str], num_workers: int, batch_size
 def parse_args():
     parser = argparse.ArgumentParser(description="Align faces for further training")
     parser.add_argument("--data_dir", type=lambda p: Path(p), default=DATA_DIR)
+    parser.add_argument("--output_dir", type=lambda p: Path(p), required=True)
     parser.add_argument("--num_workers", type=int, default=NUM_WORKERS)
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
     parser.add_argument("--image_size", type=int, required=True)
@@ -58,5 +61,10 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    preprocess_vggface2(args.data_dir, args.num_workers, args.batch_size, args.image_size,
-                        args.margin, args.cpu)
+    preprocess_vggface2(args.data_dir,
+                        args.output_dir,
+                        args.num_workers,
+                        args.batch_size,
+                        args.image_size,
+                        args.margin,
+                        args.cpu)

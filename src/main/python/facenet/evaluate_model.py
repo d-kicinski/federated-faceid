@@ -6,11 +6,9 @@ from pprint import pprint
 from torch.nn import Module, PairwiseDistance
 from torch.utils.data import DataLoader
 
-from commons import get_validation_data_loader, ModelBuilder, load_checkpoint
-from evaluation import EvaluationMetrics, evaluate
-from settings import DataSettings, ModelSettings
-
-CHECKPOINT_PATH = Path("../../../resources/models/model_resnet34_triplet.pt")
+from facenet.commons import get_validation_data_loader, ModelBuilder, load_checkpoint
+from facenet.evaluation import EvaluationMetrics, evaluate
+from facenet.settings import DataSettings, ModelSettings
 
 
 def evaluate_model(settings_model: ModelSettings, settings_data: DataSettings):
@@ -26,6 +24,8 @@ def evaluate_model(settings_model: ModelSettings, settings_data: DataSettings):
     model = checkpoint.model
     epoch_last = checkpoint.epoch
 
+    model.eval()
+
     figure_name = f"roc_eval_{epoch_last}.png"
     figure_path: Path = settings_data.output_dir.joinpath(figure_name)
 
@@ -37,8 +37,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate model on LFW dataset")
     parser.add_argument("--output_dir", type=lambda p: Path(p) if p else None,
                         default=DataSettings.output_dir)
-    parser.add_argument("--checkpoint_path", type=lambda p: Path(p) if p else None,
-                        default=CHECKPOINT_PATH)
+    parser.add_argument("--checkpoint_path", type=lambda p: Path(p) if p else None, required=True)
     parser.add_argument("--lfw_dir", type=lambda p: Path(p),
                         default=DataSettings.lfw_dir)
     parser.add_argument("--lfw_batch_size", type=int,
@@ -62,7 +61,8 @@ def main():
                                    lfw_batch_size=args.lfw_batch_size)
 
     data_settings = DataSettings(checkpoint_path=args.checkpoint_path,
-                                 lfw_dir=args.lfw_dir)
+                                 lfw_dir=args.lfw_dir,
+                                 output_dir=args.output_dir)
 
     evaluate_model(model_settings, data_settings)
 
