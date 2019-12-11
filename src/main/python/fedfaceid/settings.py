@@ -42,6 +42,9 @@ class ModelSettings:
     images_per_person: int = 45
     batches_in_epoch: int = 1_240
 
+    num_local_images_to_use = 25
+    num_remote_images_to_use = sum(range(1, num_local_images_to_use - 1))
+
 
 @dataclass
 class FederatedSettings:
