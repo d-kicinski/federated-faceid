@@ -164,7 +164,7 @@ def select_people(dataset: FaceMetaDataset,
     return PeopleDataset(image_paths, num_images_per_class)
 
 
-def select_triplets(embedding: Tensor,
+def select_triplets(embedding: np.array,
                     num_images_per_class: List[int],
                     people_per_batch: int,
                     alpha: float) -> List[TripletIndexes]:
@@ -198,7 +198,10 @@ def select_triplets(embedding: Tensor,
                     embedding[idx_anchor] - embedding[idx_pos]
                 ))
 
-                all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
+                # all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
+                all_neg = np.logical_and(distances_neg - distance_pos < alpha,
+                                         distance_pos < distances_neg).nonzero()[0]
+
                 num_neg = all_neg.shape[0]
 
                 if num_neg > 0:

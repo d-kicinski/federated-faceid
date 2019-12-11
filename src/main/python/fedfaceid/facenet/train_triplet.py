@@ -1,6 +1,5 @@
 import argparse
 import dataclasses
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Any, List
@@ -138,7 +137,7 @@ class TrainEpoch:
             )
 
             print("Calculating embeddings")
-        self.model.eval()
+            self.model.eval()
             with torch.no_grad():
                 embeddings: np.array = self.calculate_embeddings(self.model, people_dataset)
 
@@ -259,7 +258,6 @@ def train_triplet(settings_data: DataSettings, settings_model: ModelSettings):
 
     # Start Training loop
 
-    total_time_start = time.time()
     end_epoch = start_epoch + settings_model.epochs
 
     face_meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_dir,
