@@ -138,7 +138,7 @@ class TrainEpoch:
             )
 
             print("Calculating embeddings")
-        self.model.eval()
+            self.model.eval()
             with torch.no_grad():
                 embeddings: np.array = self.calculate_embeddings(self.model, people_dataset)
 
