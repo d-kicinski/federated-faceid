@@ -1,10 +1,9 @@
 from typing import List
 
 import numpy as np
-from torch.utils.data import DataLoader
-
 from dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples, \
-    TripletIndexes
+    TripletIndexes, Triplet
+from torch.utils.data import Dataset
 
 
 def select_faces(face_samples: FaceMetaSamples,
@@ -18,21 +17,11 @@ def select_faces(face_samples: FaceMetaSamples,
     return PeopleDataset(image_paths, [num_images_in_class])
 
 
-def select_generated_faces(data_loader: DataLoader, num_samples: int):
-    samples = []
-    for sample in data_loader:
-        samples.append(sample)
-        if len(samples) >= num_samples:
-            break
-    return
-
-
 def select_triplets(embeddings_local: np.array,
                     embeddings_remote: np.array,
                     alpha: float):
     """ Select the triplets for training"""
 
-    idx_embedding_start: int = 0
     triplets: List[TripletIndexes] = []
     num_embeddings_local: int = embeddings_local.shape[0]
 
@@ -44,17 +33,16 @@ def select_triplets(embeddings_local: np.array,
     # than choosing the maximally violating example, as often done in structured output learning.
 
     for j_image in range(num_embeddings_local):
-        idx_anchor = idx_embedding_start + j_image
+        idx_anchor = j_image
 
         # calculate distances of each image to current anchor and mask inter class distances
         distances_neg = np.linalg.norm(embeddings_local[idx_anchor] - embeddings_remote, axis=1)
 
         # For every possible positive  pair.
         for k_image in range(j_image + 1, num_embeddings_local):
-            idx_pos = idx_embedding_start + k_image
+            idx_pos = k_image
             distance_pos = np.linalg.norm(embeddings_local[idx_anchor] - embeddings_local[idx_pos],
                                           axis=1)
-            # all_neg = np.asarray((distance_pos - distances_neg) < alpha).nonzero()[0]
 
             all_neg = np.logical_and(distances_neg - distance_pos < alpha,
                                      distance_pos < distances_neg).nonzero()[0]
@@ -67,5 +55,24 @@ def select_triplets(embeddings_local: np.array,
                                                idx_pos,
                                                idx_neg))
 
-    idx_embedding_start += num_images_in_class
     return triplets
+
+
+class FederatedTripletsDataset(Dataset):
+    def __init__(self,
+                 triplets: List[TripletIndexes],
+                 faces_local: PeopleDataset,
+                 faces_remote: PeopleDataset):
+        self.triplets = triplets
+        self.faces_local = faces_local
+        self.faces_remote = faces_remote
+
+    def __len__(self) -> int:
+        return len(self.triplets)
+
+    def __getitem__(self, idx: int):
+        triplet = self.triplets[idx]
+
+        return Triplet(anchor=self.faces_local[triplet.anchor],
+                       positive=self.faces_local[triplet.positive],
+                       negative=self.faces_remote[triplet.negative]).data

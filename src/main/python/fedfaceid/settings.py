@@ -1,14 +1,50 @@
 import argparse
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from utils import constants
+from fedfaceid import constants
 
 
 @dataclass
-class Settings:
+class DataSettings:
+    output_dir: Path = Path("../../../output_dir_baseline")
+    lfw_dir: Path = Path("../../../data/lfw/data")
+
+    dataset_local_dir: Path = Path("../../../data/vggface2/train_cropped")
+    dataset_local_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
+
+    dataset_remote_dir: Path = Path("../../../data/vggface2/train_cropped")
+    dataset_remote_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
+
+    checkpoint_path: Optional[Path] = None
+
+
+@dataclass
+class ModelSettings:
+    lfw_batch_size: int = 64
+    lfw_validation_epoch_interval: int = 1
+
+    model_architecture: str = "resnet34"
+    optimizer: str = "adam"
+
+    epochs: int = 500
+    batch_size: int = 64
+    learning_rate: float = 0.001
+    embedding_dim: int = 512
+    triplet_loss_margin: float = 0.2
+    pretrained_on_imagenet: bool = False
+
+    num_triplets_train: int = 100_000
+    num_workers: int = 4
+
+    people_per_batch: int = 40
+    images_per_person: int = 45
+    batches_in_epoch: int = 1_240
+
+
+@dataclass
+class FederatedSettings:
     num_global_epochs: int
     num_global_batch: int
     num_local_epochs: int
@@ -32,26 +68,7 @@ class Settings:
     save_path: Optional[Path] = None
 
 
-def create_save_path(settings: Settings) -> Path:
-    path = Path("artifacts")
-    model_name = "mnist"
-    if settings.distributed:
-        model_name += "_distributed"
-    if settings.non_iid:
-        model_name += "_non_iid"
-    if settings.id is not None:
-        model_name += f"_{settings.id}"
-    path = path.joinpath(model_name)
-
-    path.mkdir(exist_ok=True, parents=True)
-    path_tensorboard = path.joinpath("tensorboard").joinpath(settings.id)
-    if path_tensorboard.exists():
-        shutil.rmtree(str(path_tensorboard))
-
-    return path
-
-
-def args_parser() -> Settings:
+def args_parser() -> FederatedSettings:
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--id', type=str, required=False)
@@ -83,4 +100,4 @@ def args_parser() -> Settings:
     parser.add_argument('--seed', type=int, default=constants.SEED)
     parser.add_argument('--device', type=str, default=constants.DEVICE)
     args = parser.parse_args()
-    return Settings(**args.__dict__)
+    return FederatedSettings(**args.__dict__)

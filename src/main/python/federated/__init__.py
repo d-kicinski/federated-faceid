@@ -1,1 +1,1 @@
-from fedfaceid.distributed_training.federated import *
+from federated.federated import *

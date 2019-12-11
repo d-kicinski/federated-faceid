@@ -1,20 +1,25 @@
+import copy
 import dataclasses
-from functools import reduce
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
-from torch.nn import Module
-from torch.utils.data import Subset, DataLoader
+from torch.nn import Module, PairwiseDistance
+from torch.optim.optimizer import Optimizer
+from torch.utils.data import Subset, DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 import federated as fd
-from dataloaders import facemetadataset
-from dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples
+from facenet.commons import ModelBuilder, load_checkpoint, get_validation_data_loader
+from facenet.dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples, FaceMetaDataset
+from facenet.evaluation import evaluate
+from facenet.train_triplet import TrainStepResults, OptimizerBuilder, Tensorboard
 from fedfaceid import fedfacedataset as ffd
 from fedfaceid.commons import EarlyStopping
-from fedfaceid.settings import Settings
+from fedfaceid.fedfacedataset import FederatedTripletsDataset
+from fedfaceid.settings import FederatedSettings, DataSettings, ModelSettings
 
 
 def merge_subsets(s1: Subset, s2: Subset) -> Subset:
@@ -52,16 +57,32 @@ class EdgeDeviceSettings:
     num_remote_images_to_use: int
 
 
-class Training:
-    def __init__(self, model: Module,
+class DeviceTraining:
+    def __init__(self,
+                 device_id: int,
                  settings: EdgeDeviceSettings,
                  faces_metadata_local: FaceMetaSamples,
                  faces_metadata_remote: FaceMetaSamples):
-
-        self.model: Module = model
-        self.settings: EdgeDeviceSettings = settings
+        self.device_id: int = device_id
+        self.settings: EdgeDeviceSettings = copy.deepcopy(settings)
         self.faces_metadata_local: FaceMetaSamples = faces_metadata_local
         self.faces_metadata_remote: FaceMetaSamples = faces_metadata_remote
+
+        self.model: Optional[Module] = None
+
+        self.loss_fn = torch.nn.TripletMarginLoss(margin=settings.loss_margin,
+                                                  reduction="mean")
+
+        self.global_step: int = 0
+
+    def download(self, model: Module):
+        self.model = copy.deepcopy(model)
+
+    def upload(self) -> Module:
+        if self.model is not None:
+            return copy.deepcopy(self.model)
+        else:
+            raise ValueError("Model not found on this device!")
 
     def _calculate_embeddings(self, model: Module, people_dataset: PeopleDataset):
         image_loader = DataLoader(people_dataset,
@@ -104,19 +125,19 @@ class Training:
                 embeddings_local: np.array = self._calculate_embeddings(self.model, faces_local)
                 embeddings_remote: np.array = self._calculate_embeddings(self.model, faces_remote)
 
-                triplets = facemetadataset.select_triplets(
+                triplets = ffd.select_triplets(
                     embeddings_local,
                     embeddings_remote,
                     self.settings.loss_margin
                 )
 
-                triplet_dataset = TripletsDataset(triplets, people_dataset)
+                triplet_dataset = FederatedTripletsDataset(triplets, faces_local, faces_remote)
 
-                self.model.train()
-                results: TrainStepResults = self.train_step(triplet_dataset)
-                num_batches += results.steps
+            self.model.train()
+            results: TrainStepResults = self.train(triplet_dataset)
+            num_batches += results.steps
 
-    def train_step(self, triplet_dataset: TripletsDataset) -> TrainStepResults:
+    def train(self, triplet_dataset: FederatedTripletsDataset) -> TrainStepResults:
         losses: List[float] = []
         local_step: int = 0
 
@@ -140,56 +161,38 @@ class Training:
             local_step += 1
             losses.append(triplet_loss.item())
 
-            if self.global_step % self.log_every_step == 0:
-                self.tensorboard.add_scalar(name="loss_train",
-                                            value=sum(losses[-self.log_every_step:]) / len(losses),
-                                            global_step=self.global_step)
-                losses: List[float] = []
-            if self.global_step % self.evaluate_every_step == 0:
-                print("Validating on LFW!")
-                self.model.eval()
-
-                metrics: EvaluationMetrics = evaluate(self.model,
-                                                      self.distance_fn,
-                                                      self.dataset_eval_loader,
-                                                      None)
-                self.tensorboard.add_dict(dataclasses.asdict(metrics), self.global_step)
-                self.model.train()
-
-        return TrainStepResults(0.0, local_step)
+        loss_mean = sum(losses) / len(losses)
+        return TrainStepResults(loss_mean, local_step)
 
 
 def train_distributed(model: Module,
-                      loader_distributed: DataLoader,
-                      loader_generated: DataLoader,
-                      settings: Settings) -> Module:
+                      face_local_meta_dataset: FaceMetaDataset,
+                      face_remote_meta_dataset: FaceMetaDataset,
+                      dataset_validate: Dataset,
+                      settings: FederatedSettings) -> Module:
     dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
     # num_users: int = len(dataset_train.classes)
     num_users = settings.num_users
     subsets_per_user = settings.num_subsets_per_user
 
     lr = settings.learning_rate * (2 - settings.learning_rate_decay)
-    settings_edge_device = fd.EdgeDeviceSettings(epochs=settings.num_local_epochs,
-                                                 batch_size=settings.num_local_batch,
-                                                 learning_rate=lr,
-                                                 learning_rate_decay=settings.learning_rate_decay,
-                                                 device=settings.device)
+    settings_edge_device = EdgeDeviceSettings(epochs=settings.num_local_epochs,
+                                              batch_size=settings.num_local_batch,
+                                              learning_rate=lr,
+                                              learning_rate_decay=settings.learning_rate_decay,
+                                              device=settings.device)
 
-    subsets: List[Subset]
-    if settings.non_iid:
-        subsets = data.split_dataset_non_iid(dataset_train, num_users * subsets_per_user)
-    else:
-        subsets = data.split_dataset_iid(dataset_train, num_users)
+    # subsets: List[Subset]
+    # subsets = data.split_dataset_non_iid(dataset_train, num_users * subsets_per_user)
 
     users = []
-    subsets_indices = list(range(len(subsets)))
+
     for i in range(num_users):
-        indices = np.random.choice(subsets_indices, size=subsets_per_user, replace=False)
+        # indices = np.random.choice(subsets_indices, size=subsets_per_user, replace=False)
 
-        [subsets_indices.remove(i) for i in indices]
-        subset_for_user = reduce(merge_subsets, [subsets[i] for i in indices])
+        # [subsets_indices.remove(i) for i in indices]
 
-        user = fd.EdgeDevice(device_id=i, subset=subset_for_user, settings=settings_edge_device)
+        user = DeviceTraining(device_id=i, settings=settings_edge_device)
         users.append(user)
 
     max_users_in_round = max(int(settings.user_fraction * num_users), 1)
@@ -252,3 +255,61 @@ def train_distributed(model: Module,
             break
 
     return model
+
+
+def train(settings_model: ModelSettings, settings_data: DataSettings):
+    output_dir: Path = settings_data.output_dir
+    output_dir_logs = output_dir.joinpath("logs")
+    output_dir_plots = output_dir.joinpath("plots")
+    output_dir_checkpoints = output_dir.joinpath("checkpoints")
+    output_dir_tensorboard = output_dir.joinpath("tensorboard")
+
+    output_dir_logs.mkdir(exist_ok=True, parents=True)
+    output_dir_plots.mkdir(exist_ok=True, parents=True)
+    output_dir_checkpoints.mkdir(exist_ok=True, parents=True)
+
+    model_architecture = settings_model.model_architecture
+
+    start_epoch: int = 0
+    global_step: int = 0
+
+    data_loader_validate: DataLoader = get_validation_data_loader(settings_model, settings_data)
+
+    model: Module = ModelBuilder.build(settings_model.model_architecture,
+                                       settings_model.embedding_dim,
+                                       settings_model.pretrained_on_imagenet)
+
+    print("Using {} model architecture.".format(model_architecture))
+
+    # Load model to GPU or multiple GPUs if available
+    if torch.cuda.is_available():
+        print("Using single-gpu training.")
+        model.cuda()
+
+    optimizer: Optimizer = OptimizerBuilder.build(model,
+                                                  settings_model.optimizer,
+                                                  settings_model.learning_rate)
+    if settings_data.checkpoint_path:
+        checkpoint = load_checkpoint(output_dir_checkpoints, model, optimizer)
+        model = checkpoint.model
+        optimizer = checkpoint.optimizer
+        start_epoch = checkpoint.epoch
+        global_step = checkpoint.global_step
+
+    # Start Training loop
+
+    end_epoch = start_epoch + settings_model.epochs
+
+    face_local__meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_local_dir,
+                                               csv_name=settings_data.dataset_local_csv_file)
+
+    face_remote_meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_remote_dir,
+                                               csv_name=settings_data.dataset_remote_csv_file)
+
+    l2_distance = PairwiseDistance(2).cuda()
+    loss_fn = torch.nn.TripletMarginLoss(margin=settings_model.triplet_loss_margin,
+                                         reduction="mean")
+    tensorboard = Tensorboard(output_dir_tensorboard)
+
+    train_distributed(model=model,
+                      )
