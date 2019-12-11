@@ -127,7 +127,7 @@ def get_validation_data_loader(settings_model: ModelSettings,
     ])
 
     data_loader_lfw = DataLoader(
-        dataset=LFWDataset(data_path=settings_data.lfw_dir.joinpath("test"),
+        dataset=LFWDataset(data_path=settings_data.lfw_dir.joinpath("train"),
                            pairs_path=settings_data.lfw_dir.joinpath("LFW_pairs.txt"),
                            transform=transforms_lfw),
         batch_size=settings_model.lfw_batch_size,
