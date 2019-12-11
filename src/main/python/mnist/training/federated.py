@@ -8,12 +8,12 @@ from torch.nn import Module
 from torch.utils.data import Subset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import CIFAR10
-
-import federated as fd
 from training.commons import EarlyStopping
 from training.evaluation import EvaluationResult, evaluate
 from utils import data
 from utils.settings import Settings
+
+import federated as fd
 
 
 def merge_subsets(s1: Subset, s2: Subset) -> Subset:

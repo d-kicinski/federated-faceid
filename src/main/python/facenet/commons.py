@@ -8,10 +8,10 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-import models
-from dataloaders.LFWDataset import LFWDataset
-from dataloaders.triplet_loss_dataloader import TripletFaceDataset
-from settings import ModelSettings, DataSettings
+from facenet import models
+from facenet.dataloaders.LFWDataset import LFWDataset
+from facenet.dataloaders.triplet_loss_dataloader import TripletFaceDataset
+from facenet.settings import ModelSettings, DataSettings
 
 
 class ModelBuilder:

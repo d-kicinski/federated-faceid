@@ -95,12 +95,14 @@ class TripletsDataset(Dataset):
 class FaceMetaDataset(Dataset):
     def __init__(self,
                  root_dir: Path,
-                 csv_name: Path):
-        self.metadata: List[FaceMetaSamples] = FaceMetaDataset.load_metadata(root_dir, csv_name)
+                 csv_name: Path,
+                 min_images_per_class: int = 1):
         self.root_dir: Path = root_dir
+        self.min_images_per_class = min_images_per_class
 
-    @staticmethod
-    def load_metadata(dataset_path: Path, metadata_path: Path) -> List[FaceMetaSamples]:
+        self.metadata: List[FaceMetaSamples] = self.load_metadata(root_dir, csv_name)
+
+    def load_metadata(self, dataset_path: Path, metadata_path: Path) -> List[FaceMetaSamples]:
         face_samples = defaultdict(list)
         with metadata_path.open("r") as metadata_file:
             reader = csv.DictReader(metadata_file)
@@ -109,9 +111,10 @@ class FaceMetaDataset(Dataset):
 
         face_meta_samples: List[FaceMetaSamples] = []
         for name, filenames in tqdm(face_samples.items(), desc="Processing metadata"):
-            image_paths = [
-                _add_extension(dataset_path.joinpath(name, filename)) for filename in filenames]
-            face_meta_samples.append(FaceMetaSamples(name, image_paths))
+            if len(filenames) >= self.min_images_per_class:
+                image_paths = [
+                    _add_extension(dataset_path.joinpath(name, filename)) for filename in filenames]
+                face_meta_samples.append(FaceMetaSamples(name, image_paths))
 
         return face_meta_samples
 
@@ -187,8 +190,7 @@ def select_triplets(embedding: Tensor,
 
             # calculate distances of each image to current anchor and mask inter class distances
             distances_neg = np.sum(np.square(embedding[idx_anchor] - embedding), axis=1)
-            distances_neg[
-            idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
+            distances_neg[idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
 
             # For every possible positive  pair.
             for k_image in range(j_image + 1, num_images_in_class):

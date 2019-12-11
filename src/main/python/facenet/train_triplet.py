@@ -14,12 +14,12 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from commons import get_validation_data_loader, ModelBuilder, load_checkpoint
-from dataloaders import facemetadataset
-from dataloaders.facemetadataset import FaceMetaDataset, PeopleDataset, TripletsDataset, \
+from facenet.commons import get_validation_data_loader, ModelBuilder, load_checkpoint
+from facenet.dataloaders import facemetadataset
+from facenet.dataloaders.facemetadataset import FaceMetaDataset, PeopleDataset, TripletsDataset, \
     TripletIndexes
-from evaluation import EvaluationMetrics, evaluate
-from settings import DataSettings, ModelSettings
+from facenet.evaluation import EvaluationMetrics, evaluate
+from facenet.settings import DataSettings, ModelSettings
 
 
 def parse_args():
@@ -149,11 +149,11 @@ class TrainEpoch:
                     self.settings.triplet_loss_margin
                 )
 
-            triplet_dataset = TripletsDataset(triplets, people_dataset)
+                triplet_dataset = TripletsDataset(triplets, people_dataset)
 
-            self.model.train()
-            results: TrainStepResults = self.train_step(triplet_dataset)
-            num_batches += results.steps
+                self.model.train()
+                results: TrainStepResults = self.train_step(triplet_dataset)
+                num_batches += results.steps
 
     def train_step(self, triplet_dataset: TripletsDataset) -> TrainStepResults:
         losses: List[float] = []
@@ -197,11 +197,11 @@ class TrainEpoch:
 
         return TrainStepResults(0.0, local_step)
 
-    def calculate_embeddings(self, model: Module, dataset: PeopleDataset):
-        image_loader = DataLoader(dataset,
+    def calculate_embeddings(self, model: Module, people_dataset: PeopleDataset):
+        image_loader = DataLoader(people_dataset,
                                   batch_size=self.settings.batch_size,
                                   shuffle=False)
-        num_examples = len(dataset)
+        num_examples = len(people_dataset)
 
         embeddings = np.zeros((num_examples, self.settings.embedding_dim))
 

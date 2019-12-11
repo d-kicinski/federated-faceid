@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def generate_csv_file(dataroot, csv_name="vggface2.csv"):
+def generate_csv_file(data_dir: str, output_file: str):
     """Generates a csv file containing the image paths of the VGGFace2 dataset for use in triplet selection in
     triplet loss training.
 
@@ -16,16 +16,18 @@ def generate_csv_file(dataroot, csv_name="vggface2.csv"):
         csv_name (str): name of the resulting csv file.
     """
     print("\nLoading image paths ...")
-    files = glob.glob(dataroot + "/*/*")
+    files = glob.glob(data_dir + "/*/*")
     start_time = time.time()
     list_rows = []
+
+    print(data_dir)
+    print(os.listdir(data_dir))
+    print(files)
 
     print("Number of files: {}".format(len(files)))
     print("\nGenerating csv file ...")
 
-    progress_bar = enumerate(tqdm(files))
-
-    for file_index, file in progress_bar:
+    for file_index, file in enumerate(tqdm(files)):
         face_id = os.path.basename(file).split('.')[0]
         face_label = os.path.basename(os.path.dirname(file))
 
@@ -38,7 +40,7 @@ def generate_csv_file(dataroot, csv_name="vggface2.csv"):
 
     # Encode names as categorical classes
     df['class'] = pd.factorize(df['name'])[0]
-    df.to_csv(path_or_buf=csv_name, index=False)
+    df.to_csv(path_or_buf=output_file, index=False)
 
     elapsed_time = time.time() - start_time
     print("\nDone! Elapsed time: {:.2f} minutes.".format(elapsed_time / 60))
@@ -60,7 +62,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    generate_csv_file(dataroot=args.dataroot, csv_name=args.csv_name)
+    generate_csv_file(data_dir=args.dataroot, output_file=args.csv_name)
 
 
 if __name__ == '__main__':

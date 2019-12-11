@@ -1,10 +1,9 @@
 import torch
+import training
+from models.baseline import CNNCifar10
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
-
-import training
-from models.baseline import CNNCifar10
 from training.evaluation import evaluate, EvaluationResult
 from utils import constants
 from utils.settings import Settings, args_parser, create_save_path
@@ -40,7 +39,7 @@ def train():
                            train=False, transform=transform_test, download=False)
 
     if settings.distributed:
-        model = training.train_federated(model, dataset_train, dataset_test, settings)
+        model = training.train(model, dataset_train, dataset_test, settings)
     else:
         model = training.train_server(model, dataset_train, dataset_test, settings)
 

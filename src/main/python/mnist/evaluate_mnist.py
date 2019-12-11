@@ -1,9 +1,8 @@
 import torch
+from models.baseline import CNNCifar10
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
-
-from models.baseline import CNNCifar10
 from training import evaluation
 from training.evaluation import EvaluationResult
 from utils import constants
