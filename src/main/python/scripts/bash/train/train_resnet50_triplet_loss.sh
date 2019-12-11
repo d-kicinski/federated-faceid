@@ -9,7 +9,7 @@ python3 ./fedfaceid/facenet/train_triplet.py \
     --model_architecture "resnet50" \
     --optimizer "adam" \
     --learning_rate 0.001 \
-    --output_dir "../../../outputs/resnet50_triplet" \
+    --output_dir "../../../outputs/resnet50_triplet_facenet_sampling" \
     --dataset_dir "../../../data/vggface2/train_cropped" \
     --lfw_dir "../../../data/lfw/data" \
     --dataset_csv_file "../../../data/vggface2/train_cropped_meta.csv"
