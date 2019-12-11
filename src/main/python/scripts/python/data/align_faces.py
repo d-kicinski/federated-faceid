@@ -13,10 +13,14 @@ DATA_DIR: str = "../../../data/vggface2/train"
 
 
 def preprocess_vggface2(data_dir: Union[Path, str], num_workers: int, batch_size: int,
-                        image_size: int, margin: int):
+                        image_size: int, margin: int, use_cpu: bool):
     data_dir = str(data_dir)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if use_cpu:
+        device = "cpu"
+    else:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
     print("Running processing on device: {}".format(device))
 
     mtcnn = MTCNN(image_size=image_size, margin=margin, min_face_size=20,
@@ -47,6 +51,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
     parser.add_argument("--image_size", type=int, required=True)
     parser.add_argument("--margin", type=int, required=True)
+    parser.add_argument("--cpu", action="store_true", default=False, required=False)
 
     return parser.parse_args()
 
@@ -54,4 +59,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     preprocess_vggface2(args.data_dir, args.num_workers, args.batch_size, args.image_size,
-                        args.margin)
+                        args.margin, args.cpu)

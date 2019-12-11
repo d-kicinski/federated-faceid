@@ -4,7 +4,7 @@ from typing import *
 
 import torch
 from torch.nn import Module, CrossEntropyLoss
-from torch.utils.data import DataLoader, Subset, SubsetRandomSampler
+from torch.utils.data import DataLoader
 
 
 def federated_averaging(models: List[Module]) -> Module:
@@ -39,14 +39,11 @@ class TrainingResult:
 
 
 class EdgeDevice:
-    def __init__(self, device_id: int, settings: EdgeDeviceSettings, subset: Subset):
+    def __init__(self, device_id: int, settings: EdgeDeviceSettings, data_loader: DataLoader):
         self.device_id = device_id
+        self._data_loader = data_loader
         self.setting = copy.deepcopy(settings)
         self._loss_func = CrossEntropyLoss()
-        self._data_loader = DataLoader(subset.dataset,
-                                       sampler=SubsetRandomSampler(subset.indices),
-                                       batch_size=self.setting.batch_size)
-
         self._model: Optional[Module] = None
 
     def download(self, model: Module):

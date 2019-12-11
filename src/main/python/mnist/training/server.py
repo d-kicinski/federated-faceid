@@ -5,7 +5,6 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
 from training.commons import EarlyStopping
 from training.evaluation import evaluate, EvaluationResult
 from utils.settings import Settings
