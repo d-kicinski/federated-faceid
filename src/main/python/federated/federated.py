@@ -22,6 +22,37 @@ def federated_averaging(models: List[Module]) -> Module:
     return global_model
 
 
+class ModelAccumulator:
+    def __init__(self):
+        self.model_counter: int = 0
+        self.global_model = None
+        self.global_weights = None
+
+    def update(self, model):
+        local_weights = model.state_dict()
+
+        if self.global_model is None:
+            self.global_model = model
+            self.global_weights = local_weights
+            self.model_counter += 1
+        else:
+            for k in self.global_weights.keys():
+                self.global_weights[k] += local_weights[k]
+            self.model_counter += 1
+
+    def get(self):
+        for k in self.global_weights.keys():
+            self.global_weights[k] = torch.div(self.global_weights[k], self.model_counter)
+
+        self.global_model.load_state_dict(self.global_weights)
+        return self.global_model
+
+    def reset(self):
+        self.global_model = None
+        self.global_weights = None
+        self.model_counter = 0
+
+
 @dataclass
 class EdgeDeviceSettings:
     batch_size: int

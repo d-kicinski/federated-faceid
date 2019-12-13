@@ -8,13 +8,13 @@ class DataSettings:
     output_dir: Path = Path("../../../output_dir_baseline")
     lfw_dir: Path = Path("../../../data/lfw/data")
 
-    dataset_local_dir: Path = Path("../../../data/vggface2/train_cropped")
-    dataset_local_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
+    dataset_local_dir: Path = Path("../../../data/lfw/data/train")
+    dataset_local_csv_file: Path = Path("../../../data/lfw/data/train_meta.csv")
 
-    dataset_remote_dir: Path = Path("../../../data/vggface2/train_cropped")
-    dataset_remote_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
+    dataset_remote_dir: Path = Path("../../../data/nv/nv-gen_cropped")
+    dataset_remote_csv_file: Path = Path("../../../data/nv/nv-gen_train_meta.csv")
 
-    checkpoint_path: Optional[Path] = None
+    checkpoint_path: Optional[Path] = Path("../../../resources/models/resnet50_triplet.pt")
 
 
 @dataclass
@@ -34,7 +34,7 @@ class ModelSettings:
 
     people_per_batch: int = 40
     images_per_person: int = 45
-    batches_in_epoch: int = 1_240
+    batches_in_epoch: int = 10
 
     num_local_images_to_use: int = 25  # max images to sample from local dataset
     num_remote_images_to_use: int = sum(range(1, num_local_images_to_use - 1))

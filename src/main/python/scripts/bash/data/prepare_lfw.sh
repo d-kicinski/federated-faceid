@@ -16,3 +16,9 @@ PYTHONPATH=. python ./scripts/python/data/align_faces.py \
      --margin 44 \
      --num_workers 2 \
      --cpu
+
+PYTHONPATH=. python3 facenet/datasets/generate_csv_files.py \
+    --dataroot  "../../../data/lfw/data/train" \
+    --csv_name "../../../data/lfw/data/train_meta.csv"
+
+

@@ -97,9 +97,10 @@ class FaceMetaDataset(Dataset):
                  root_dir: Path,
                  csv_name: Path,
                  min_images_per_class: int = 1):
-        self.metadata: List[FaceMetaSamples] = FaceMetaDataset.load_metadata(root_dir, csv_name)
         self.root_dir: Path = root_dir
         self.min_images_per_class = min_images_per_class
+
+        self.metadata: List[FaceMetaSamples] = self.load_metadata(root_dir, csv_name)
 
     def load_metadata(self, dataset_path: Path, metadata_path: Path) -> List[FaceMetaSamples]:
         face_samples = defaultdict(list)
@@ -189,8 +190,7 @@ def select_triplets(embedding: Tensor,
 
             # calculate distances of each image to current anchor and mask inter class distances
             distances_neg = np.sum(np.square(embedding[idx_anchor] - embedding), axis=1)
-            distances_neg[
-            idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
+            distances_neg[idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
 
             # For every possible positive  pair.
             for k_image in range(j_image + 1, num_images_in_class):

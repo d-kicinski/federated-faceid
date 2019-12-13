@@ -1,9 +1,10 @@
 from typing import List
 
 import numpy as np
-from dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples, \
-    TripletIndexes, Triplet
 from torch.utils.data import Dataset
+
+from facenet.dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples, \
+    TripletIndexes, Triplet
 
 
 def select_faces(face_samples: FaceMetaSamples,
@@ -11,7 +12,7 @@ def select_faces(face_samples: FaceMetaSamples,
     num_images_in_class = len(face_samples)
     image_indices = np.arange(num_images_in_class)
     np.random.shuffle(image_indices)
-    idx = image_indices[0: images_per_person]
+    idx = image_indices[0: min(images_per_person, num_images_in_class)]
     image_paths = [face_samples.image_paths[j] for j in idx]
 
     return PeopleDataset(image_paths, [num_images_in_class])
@@ -41,11 +42,11 @@ def select_triplets(embeddings_local: np.array,
         # For every possible positive  pair.
         for k_image in range(j_image + 1, num_embeddings_local):
             idx_pos = k_image
-            distance_pos = np.linalg.norm(embeddings_local[idx_anchor] - embeddings_local[idx_pos],
-                                          axis=1)
+            distance_pos = np.linalg.norm(embeddings_local[idx_anchor] - embeddings_local[idx_pos])
 
-            all_neg = np.logical_and(distances_neg - distance_pos < alpha,
-                                     distance_pos < distances_neg).nonzero()[0]
+            # all_neg = np.logical_and(distances_neg - distance_pos < alpha,
+            #                          distance_pos < distances_neg).nonzero()[0]
+            all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
 
             num_neg = all_neg.shape[0]
 
