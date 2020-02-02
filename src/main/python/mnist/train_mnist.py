@@ -7,6 +7,7 @@ from torchvision.datasets import CIFAR10
 from training.evaluation import evaluate, EvaluationResult
 from utils import constants
 from utils.settings import Settings, args_parser, create_save_path
+from torchsummary import summary
 
 
 def train():
@@ -33,6 +34,8 @@ def train():
                             train=True, transform=transform_train, download=True)
 
     model: torch.nn.Module = CNNCifar10()
+    summary(model, (3, 24, 24))
+
     model.to(settings.device)
 
     dataset_test = CIFAR10(constants.PATH_DATASET_CIFAR10,

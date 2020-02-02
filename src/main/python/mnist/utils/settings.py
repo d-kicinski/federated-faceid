@@ -54,7 +54,7 @@ def create_save_path(settings: Settings) -> Path:
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--id', type=str, required=False)
+    parser.add_argument('--id', type=str, required=False, default="default")
 
     parser.add_argument('--skip_stopping', action='store_true', default=constants.SKIP_STOPPING)
     parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
