@@ -11,7 +11,7 @@ from torchvision.transforms import transforms
 from facenet import models
 from facenet.dataloaders.LFWDataset import LFWDataset
 from facenet.dataloaders.triplet_loss_dataloader import TripletFaceDataset
-from facenet.settings import ModelSettings, DataSettings
+from facenet.settings import DataSettings, ModelSettings
 
 
 class ModelBuilder:

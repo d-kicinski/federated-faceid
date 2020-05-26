@@ -3,32 +3,39 @@ import dataclasses
 import torch
 from torch import Tensor
 from torch.nn import Module
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
+
 from training.commons import EarlyStopping
-from training.evaluation import evaluate, EvaluationResult
+from training.evaluation import EvaluationResult, evaluate
 from utils.settings import Settings
 
 
-def train_server(model: Module, dataset_train: Dataset, dataset_validate: Dataset,
-                 settings: Settings) -> Module:
-    dataset_iter_train = DataLoader(dataset_train, batch_size=settings.num_global_batch,
-                                    shuffle=True)
-    dataset_iter_validate = DataLoader(dataset_validate, batch_size=settings.num_global_batch)
+def train_server(
+    model: Module, dataset_train: Dataset, dataset_validate: Dataset, settings: Settings
+) -> Module:
+    dataset_iter_train = DataLoader(
+        dataset_train, batch_size=settings.num_global_batch, shuffle=True
+    )
+    dataset_iter_validate = DataLoader(
+        dataset_validate, batch_size=settings.num_global_batch
+    )
 
     criterion = torch.nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.SGD(params=model.parameters(),
-                                lr=settings.learning_rate)
+    optimizer = torch.optim.SGD(params=model.parameters(), lr=settings.learning_rate)
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1,
-                                                gamma=settings.learning_rate_decay)
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=1, gamma=settings.learning_rate_decay
+    )
 
     early_stopping = EarlyStopping(settings.stopping_rounds)
     if settings.skip_stopping:
         early_stopping.disable()
 
-    writer = SummaryWriter(str(settings.save_path.joinpath("tensorboard").joinpath(settings.id)))
+    writer = SummaryWriter(
+        str(settings.save_path.joinpath("tensorboard").joinpath(settings.id))
+    )
 
     list_loss = []
     global_step = 0
@@ -49,8 +56,11 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
 
             batch_loss.append(loss.item())
             if i_batch % 100 == 0:
-                writer.add_scalar("train_loss", sum(batch_loss) / len(batch_loss),
-                                  global_step=global_step)
+                writer.add_scalar(
+                    "train_loss",
+                    sum(batch_loss) / len(batch_loss),
+                    global_step=global_step,
+                )
             global_step += 1
 
         results: EvaluationResult = evaluate(model.cpu(), dataset_iter_validate)
@@ -60,21 +70,21 @@ def train_server(model: Module, dataset_train: Dataset, dataset_validate: Datase
         loss_avg = sum(batch_loss) / len(batch_loss)
         list_loss.append(loss_avg)
 
-        print(f"epoch={i_epoch}  "
-              f"global_step={global_step}  "
-              f"lr={scheduler.get_lr()[0]:.4f}  "
-              f"train_loss={loss_avg:.3f}  "
-              f"eval_loss={results.loss:.3f}  "
-              f"eval_f1={results.f1_score:.3f}")
+        print(
+            f"epoch={i_epoch}  "
+            f"global_step={global_step}  "
+            f"lr={scheduler.get_lr()[0]:.4f}  "
+            f"train_loss={loss_avg:.3f}  "
+            f"eval_loss={results.loss:.3f}  "
+            f"eval_f1={results.f1_score:.3f}"
+        )
 
         if early_stopping.is_best(results.loss):
-            torch.save(model.state_dict(),
-                       settings.save_path.joinpath("model.pt"))
+            torch.save(model.state_dict(), settings.save_path.joinpath("model.pt"))
 
         if early_stopping.update(results.loss).should_break:
             print("Early stopping! Loading best model.")
-            model.load_state_dict(
-                torch.load(settings.save_path.joinpath("model.pt")))
+            model.load_state_dict(torch.load(settings.save_path.joinpath("model.pt")))
             break
 
         scheduler.step(i_epoch)

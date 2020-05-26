@@ -1,5 +1,4 @@
 class EarlyStopping:
-
     def __init__(self, patience: int):
         self._should_init = True
         self._patience: int = patience

@@ -54,33 +54,68 @@ def create_save_path(settings: Settings) -> Path:
 def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--id', type=str, required=False, default="default")
+    parser.add_argument("--id", type=str, required=False, default="default")
 
-    parser.add_argument('--skip_stopping', action='store_true', default=constants.SKIP_STOPPING)
-    parser.add_argument('--distributed', action='store_true', default=constants.DISTRIBUTED,
-                        help='whether use distributed training or not')
-    parser.add_argument('--non_iid', action='store_true', default=constants.NON_IID,
-                        help='whether i.i.d or not')
+    parser.add_argument(
+        "--skip_stopping", action="store_true", default=constants.SKIP_STOPPING
+    )
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        default=constants.DISTRIBUTED,
+        help="whether use distributed training or not",
+    )
+    parser.add_argument(
+        "--non_iid",
+        action="store_true",
+        default=constants.NON_IID,
+        help="whether i.i.d or not",
+    )
 
     # federated arguments
-    parser.add_argument('--num_subsets_per_user', type=int, default=constants.NUM_SUBSETS_PER_USER)
-    parser.add_argument('--num_global_epochs', type=int, default=constants.NUM_GLOBAL_EPOCHS)
-    parser.add_argument('--num_global_batch', type=int, default=constants.NUM_GLOBAL_BATCH)
-    parser.add_argument('--num_users', type=int, default=constants.NUM_USERS,
-                        help="number of users: K")
-    parser.add_argument('--user_fraction', type=float, default=constants.USER_FRACTION,
-                        help="the fraction of clients: C")
-    parser.add_argument('--num_local_epochs', type=int, default=constants.NUM_LOCAL_EPOCHS,
-                        help="the number of local epochs: E")
-    parser.add_argument('--num_local_batch', type=int, default=constants.NUM_LOCAL_BATCH,
-                        help="local batch size: B")
+    parser.add_argument(
+        "--num_subsets_per_user", type=int, default=constants.NUM_SUBSETS_PER_USER
+    )
+    parser.add_argument(
+        "--num_global_epochs", type=int, default=constants.NUM_GLOBAL_EPOCHS
+    )
+    parser.add_argument(
+        "--num_global_batch", type=int, default=constants.NUM_GLOBAL_BATCH
+    )
+    parser.add_argument(
+        "--num_users", type=int, default=constants.NUM_USERS, help="number of users: K"
+    )
+    parser.add_argument(
+        "--user_fraction",
+        type=float,
+        default=constants.USER_FRACTION,
+        help="the fraction of clients: C",
+    )
+    parser.add_argument(
+        "--num_local_epochs",
+        type=int,
+        default=constants.NUM_LOCAL_EPOCHS,
+        help="the number of local epochs: E",
+    )
+    parser.add_argument(
+        "--num_local_batch",
+        type=int,
+        default=constants.NUM_LOCAL_BATCH,
+        help="local batch size: B",
+    )
 
     # other arguments
-    parser.add_argument('--learning_rate', type=float, default=constants.LEARNING_RATE)
-    parser.add_argument('--learning_rate_decay', type=float, default=constants.LEARNING_RATE_DECAY)
-    parser.add_argument('--stopping_rounds', type=int, default=constants.STOPPING_ROUNDS,
-                        help='rounds of early stopping')
-    parser.add_argument('--seed', type=int, default=constants.SEED)
-    parser.add_argument('--device', type=str, default=constants.DEVICE)
+    parser.add_argument("--learning_rate", type=float, default=constants.LEARNING_RATE)
+    parser.add_argument(
+        "--learning_rate_decay", type=float, default=constants.LEARNING_RATE_DECAY
+    )
+    parser.add_argument(
+        "--stopping_rounds",
+        type=int,
+        default=constants.STOPPING_ROUNDS,
+        help="rounds of early stopping",
+    )
+    parser.add_argument("--seed", type=int, default=constants.SEED)
+    parser.add_argument("--device", type=str, default=constants.DEVICE)
     args = parser.parse_args()
     return Settings(**args.__dict__)

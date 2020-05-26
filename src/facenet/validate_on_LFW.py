@@ -38,22 +38,43 @@ def evaluate_lfw(distances, labels, num_folds=10, far_target=1e-3):
 
     # Calculate ROC metrics
     thresholds_roc = np.arange(min(distances) - 2, max(distances) + 2, 0.01)
-    true_positive_rate, false_positive_rate, precision, recall, accuracy, best_distances = \
-        calculate_roc_values(
-            thresholds=thresholds_roc, distances=distances, labels=labels, num_folds=num_folds
-        )
+    (
+        true_positive_rate,
+        false_positive_rate,
+        precision,
+        recall,
+        accuracy,
+        best_distances,
+    ) = calculate_roc_values(
+        thresholds=thresholds_roc,
+        distances=distances,
+        labels=labels,
+        num_folds=num_folds,
+    )
 
     roc_auc = auc(false_positive_rate, true_positive_rate)
 
     # Calculate validation rate
     thresholds_val = np.arange(min(distances) - 2, max(distances) + 2, 0.001)
     tar, far = calculate_val(
-        thresholds_val=thresholds_val, distances=distances, labels=labels, far_target=far_target,
-        num_folds=num_folds
+        thresholds_val=thresholds_val,
+        distances=distances,
+        labels=labels,
+        far_target=far_target,
+        num_folds=num_folds,
     )
 
-    return true_positive_rate, false_positive_rate, precision, recall, accuracy, roc_auc, \
-           best_distances, tar, far
+    return (
+        true_positive_rate,
+        false_positive_rate,
+        precision,
+        recall,
+        accuracy,
+        roc_auc,
+        best_distances,
+        tar,
+        far,
+    )
 
 
 def calculate_roc_values(thresholds, distances, labels, num_folds=10):
@@ -75,21 +96,36 @@ def calculate_roc_values(thresholds, distances, labels, num_folds=10):
         accuracies_trainset = np.zeros(num_thresholds)
         for threshold_index, threshold in enumerate(thresholds):
             _, _, _, _, accuracies_trainset[threshold_index] = calculate_metrics(
-                threshold=threshold, dist=distances[train_set], actual_issame=labels[train_set]
+                threshold=threshold,
+                dist=distances[train_set],
+                actual_issame=labels[train_set],
             )
         best_threshold_index = np.argmax(accuracies_trainset)
 
         # Test on test set using the best distance threshold
         for threshold_index, threshold in enumerate(thresholds):
-            true_positive_rates[fold_index, threshold_index], false_positive_rates[
-                fold_index, threshold_index], _, _, \
-            _ = calculate_metrics(
-                threshold=threshold, dist=distances[test_set], actual_issame=labels[test_set]
+            (
+                true_positive_rates[fold_index, threshold_index],
+                false_positive_rates[fold_index, threshold_index],
+                _,
+                _,
+                _,
+            ) = calculate_metrics(
+                threshold=threshold,
+                dist=distances[test_set],
+                actual_issame=labels[test_set],
             )
 
-        _, _, precision[fold_index], recall[fold_index], accuracy[fold_index] = calculate_metrics(
-            threshold=thresholds[best_threshold_index], dist=distances[test_set],
-            actual_issame=labels[test_set]
+        (
+            _,
+            _,
+            precision[fold_index],
+            recall[fold_index],
+            accuracy[fold_index],
+        ) = calculate_metrics(
+            threshold=thresholds[best_threshold_index],
+            dist=distances[test_set],
+            actual_issame=labels[test_set],
         )
 
         best_distances[fold_index] = thresholds[best_threshold_index]
@@ -97,7 +133,14 @@ def calculate_roc_values(thresholds, distances, labels, num_folds=10):
     true_positive_rate = np.mean(true_positive_rates, 0)
     false_positive_rate = np.mean(false_positive_rates, 0)
 
-    return true_positive_rate, false_positive_rate, precision, recall, accuracy, best_distances
+    return (
+        true_positive_rate,
+        false_positive_rate,
+        precision,
+        recall,
+        accuracy,
+        best_distances,
+    )
 
 
 def calculate_metrics(threshold, dist, actual_issame):
@@ -105,23 +148,40 @@ def calculate_metrics(threshold, dist, actual_issame):
     predict_issame = np.less(dist, threshold)
 
     true_positives = np.sum(np.logical_and(predict_issame, actual_issame))
-    false_positives = np.sum(np.logical_and(predict_issame, np.logical_not(actual_issame)))
+    false_positives = np.sum(
+        np.logical_and(predict_issame, np.logical_not(actual_issame))
+    )
     true_negatives = np.sum(
-        np.logical_and(np.logical_not(predict_issame), np.logical_not(actual_issame)))
-    false_negatives = np.sum(np.logical_and(np.logical_not(predict_issame), actual_issame))
+        np.logical_and(np.logical_not(predict_issame), np.logical_not(actual_issame))
+    )
+    false_negatives = np.sum(
+        np.logical_and(np.logical_not(predict_issame), actual_issame)
+    )
 
     # For dealing with Divide By Zero exception
-    true_positive_rate = 0 if (true_positives + false_negatives == 0) else \
-        float(true_positives) / float(true_positives + false_negatives)
+    true_positive_rate = (
+        0
+        if (true_positives + false_negatives == 0)
+        else float(true_positives) / float(true_positives + false_negatives)
+    )
 
-    false_positive_rate = 0 if (false_positives + true_negatives == 0) else \
-        float(false_positives) / float(false_positives + true_negatives)
+    false_positive_rate = (
+        0
+        if (false_positives + true_negatives == 0)
+        else float(false_positives) / float(false_positives + true_negatives)
+    )
 
-    precision = 0 if (true_positives + false_positives) == 0 else \
-        float(true_positives) / float(true_positives + false_positives)
+    precision = (
+        0
+        if (true_positives + false_positives) == 0
+        else float(true_positives) / float(true_positives + false_positives)
+    )
 
-    recall = 0 if (true_positives + false_negatives) == 0 else \
-        float(true_positives) / float(true_positives + false_negatives)
+    recall = (
+        0
+        if (true_positives + false_negatives) == 0
+        else float(true_positives) / float(true_positives + false_negatives)
+    )
 
     accuracy = float(true_positives + true_negatives) / dist.size
 
@@ -142,17 +202,21 @@ def calculate_val(thresholds_val, distances, labels, far_target=1e-3, num_folds=
         # Find the euclidean distance threshold that gives false acceptance rate (far) = far_target
         far_train = np.zeros(num_thresholds)
         for threshold_index, threshold in enumerate(thresholds_val):
-            _, far_train[threshold_index] = calculate_val_far(threshold=threshold,
-                                                              dist=distances[train_set],
-                                                              actual_issame=labels[train_set])
+            _, far_train[threshold_index] = calculate_val_far(
+                threshold=threshold,
+                dist=distances[train_set],
+                actual_issame=labels[train_set],
+            )
         if np.max(far_train) >= far_target:
-            f = interpolate.interp1d(far_train, thresholds_val, kind='slinear')
+            f = interpolate.interp1d(far_train, thresholds_val, kind="slinear")
             threshold = f(far_target)
         else:
             threshold = 0.0
 
         tar[fold_index], far[fold_index] = calculate_val_far(
-            threshold=threshold, dist=distances[test_set], actual_issame=labels[test_set]
+            threshold=threshold,
+            dist=distances[test_set],
+            actual_issame=labels[test_set],
         )
 
     return tar, far

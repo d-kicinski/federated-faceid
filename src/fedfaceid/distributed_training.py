@@ -11,13 +11,17 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
 import federated as fd
-from facenet.commons import ModelBuilder, load_checkpoint, get_validation_data_loader
-from facenet.dataloaders.facemetadataset import PeopleDataset, FaceMetaSamples, FaceMetaDataset
-from facenet.evaluation import evaluate, EvaluationMetrics
-from facenet.train_triplet import TrainStepResults, Tensorboard
+from facenet.commons import ModelBuilder, get_validation_data_loader, load_checkpoint
+from facenet.dataloaders.facemetadataset import (
+    FaceMetaDataset,
+    FaceMetaSamples,
+    PeopleDataset,
+)
+from facenet.evaluation import EvaluationMetrics, evaluate
+from facenet.train_triplet import Tensorboard, TrainStepResults
 from fedfaceid import fedfacedataset as ffd
 from fedfaceid.fedfacedataset import FederatedTripletsDataset
-from fedfaceid.settings import FederatedSettings, DataSettings, ModelSettings
+from fedfaceid.settings import DataSettings, FederatedSettings, ModelSettings
 
 
 def average_results(results: List[fd.TrainingResult]) -> fd.TrainingResult:
@@ -48,11 +52,13 @@ class EdgeDeviceSettings:
 
 
 class DeviceTraining:
-    def __init__(self,
-                 device_id: int,
-                 settings: EdgeDeviceSettings,
-                 faces_metadata_local: FaceMetaSamples,
-                 faces_metadata_remote: FaceMetaSamples):
+    def __init__(
+        self,
+        device_id: int,
+        settings: EdgeDeviceSettings,
+        faces_metadata_local: FaceMetaSamples,
+        faces_metadata_remote: FaceMetaSamples,
+    ):
         self.device_id: int = device_id
         self.settings: EdgeDeviceSettings = copy.deepcopy(settings)
         self.faces_metadata_local: FaceMetaSamples = faces_metadata_local
@@ -60,8 +66,9 @@ class DeviceTraining:
 
         self.model: Optional[Module] = None
 
-        self.loss_fn = torch.nn.TripletMarginLoss(margin=settings.loss_margin,
-                                                  reduction="mean")
+        self.loss_fn = torch.nn.TripletMarginLoss(
+            margin=settings.loss_margin, reduction="mean"
+        )
 
         self.global_step: int = 0
 
@@ -77,9 +84,9 @@ class DeviceTraining:
             raise ValueError("Model not found on this device!")
 
     def _calculate_embeddings(self, model: Module, people_dataset: PeopleDataset):
-        image_loader = DataLoader(people_dataset,
-                                  batch_size=self.settings.batch_size,
-                                  shuffle=False)
+        image_loader = DataLoader(
+            people_dataset, batch_size=self.settings.batch_size, shuffle=False
+        )
         num_examples = len(people_dataset)
 
         embeddings = np.zeros((num_examples, self.settings.embedding_dim))
@@ -87,10 +94,12 @@ class DeviceTraining:
         start_idx = 0
 
         for i, image in enumerate(image_loader):
-            batch_size = min(num_examples - i * self.settings.batch_size, self.settings.batch_size)
+            batch_size = min(
+                num_examples - i * self.settings.batch_size, self.settings.batch_size
+            )
             image = image.cuda()
             embedding = model(image).cpu().detach().numpy()
-            embeddings[start_idx: start_idx + batch_size, :] = embedding
+            embeddings[start_idx : start_idx + batch_size, :] = embedding
 
             start_idx += self.settings.batch_size
 
@@ -99,8 +108,9 @@ class DeviceTraining:
     def train(self):
         self.model.cuda()
         self.model.train()
-        optimizer = torch.optim.SGD(params=self.model.parameters(),
-                                    lr=self.settings.learning_rate)
+        optimizer = torch.optim.SGD(
+            params=self.model.parameters(), lr=self.settings.learning_rate
+        )
 
         epoch_loss = []
         local_steps: int = 0
@@ -110,33 +120,41 @@ class DeviceTraining:
             # while num_batches < self.settings.batches_in_epoch:
             # Selecting faces from available images
             faces_local: PeopleDataset = ffd.select_faces(
-                self.faces_metadata_local,
-                self.settings.num_local_images_to_use
+                self.faces_metadata_local, self.settings.num_local_images_to_use
             )
 
-            num_remote_image_to_use = sum(range(1, min(self.settings.num_local_images_to_use,
-                                                       len(self.faces_metadata_local))))
+            num_remote_image_to_use = sum(
+                range(
+                    1,
+                    min(
+                        self.settings.num_local_images_to_use,
+                        len(self.faces_metadata_local),
+                    ),
+                )
+            )
             faces_remote: PeopleDataset = ffd.select_faces(
                 self.faces_metadata_remote, num_remote_image_to_use
             )
 
             self.model.eval()
             with torch.no_grad():
-                embeddings_local: np.array = self._calculate_embeddings(self.model,
-                                                                        faces_local)
-                embeddings_remote: np.array = self._calculate_embeddings(self.model,
-                                                                         faces_remote)
+                embeddings_local: np.array = self._calculate_embeddings(
+                    self.model, faces_local
+                )
+                embeddings_remote: np.array = self._calculate_embeddings(
+                    self.model, faces_remote
+                )
 
                 triplets = ffd.select_triplets(
-                    embeddings_local,
-                    embeddings_remote,
-                    self.settings.loss_margin
+                    embeddings_local, embeddings_remote, self.settings.loss_margin
                 )
 
                 if len(triplets) == 0:
                     continue  # :(
 
-                triplet_dataset = FederatedTripletsDataset(triplets, faces_local, faces_remote)
+                triplet_dataset = FederatedTripletsDataset(
+                    triplets, faces_local, faces_remote
+                )
 
             self.model.train()
             results: TrainStepResults = self.train_steps(optimizer, triplet_dataset)
@@ -150,25 +168,27 @@ class DeviceTraining:
 
         # mean_loss = sum(epoch_loss) / len(epoch_loss)
         self.model.cpu()
-        return fd.TrainingResult(loss=0.0,
-                                 steps=local_steps,
-                                 learning_rate=self.settings.learning_rate)
+        return fd.TrainingResult(
+            loss=0.0, steps=local_steps, learning_rate=self.settings.learning_rate
+        )
 
-    def train_steps(self,
-                    optimizer: Optimizer,
-                    triplet_dataset: FederatedTripletsDataset) -> TrainStepResults:
+    def train_steps(
+        self, optimizer: Optimizer, triplet_dataset: FederatedTripletsDataset
+    ) -> TrainStepResults:
         losses: List[float] = []
         local_step: int = 0
 
-        triplet_loader = DataLoader(triplet_dataset,
-                                    batch_size=self.settings.batch_size,
-                                    shuffle=True)
+        triplet_loader = DataLoader(
+            triplet_dataset, batch_size=self.settings.batch_size, shuffle=True
+        )
 
         for triplets in triplet_loader:
             # Calculate triplet loss
-            triplet_loss = self.loss_fn(anchor=self.model(triplets["anchor"].cuda()),
-                                        positive=self.model(triplets["positive"].cuda()),
-                                        negative=self.model(triplets["negative"].cuda())).cuda()
+            triplet_loss = self.loss_fn(
+                anchor=self.model(triplets["anchor"].cuda()),
+                positive=self.model(triplets["positive"].cuda()),
+                negative=self.model(triplets["negative"].cuda()),
+            ).cuda()
 
             # Backward pass
             optimizer.zero_grad()
@@ -183,17 +203,19 @@ class DeviceTraining:
         return TrainStepResults(loss_mean, local_step)
 
 
-def federated_training(model: Module,
-                       global_step: int,
-                       start_epoch: int,
-                       face_local_meta_dataset: FaceMetaDataset,
-                       face_remote_meta_dataset: FaceMetaDataset,
-                       validate_dataloader: DataLoader,
-                       settings_federated: FederatedSettings,
-                       settings_model: ModelSettings,
-                       tensorboard: Tensorboard,
-                       distance_fn: Module,
-                       checkpoint_path: Path) -> Module:
+def federated_training(
+    model: Module,
+    global_step: int,
+    start_epoch: int,
+    face_local_meta_dataset: FaceMetaDataset,
+    face_remote_meta_dataset: FaceMetaDataset,
+    validate_dataloader: DataLoader,
+    settings_federated: FederatedSettings,
+    settings_model: ModelSettings,
+    tensorboard: Tensorboard,
+    distance_fn: Module,
+    checkpoint_path: Path,
+) -> Module:
     if settings_federated.num_users < 0:
         num_users = len(face_local_meta_dataset)
     else:
@@ -207,15 +229,17 @@ def federated_training(model: Module,
         loss_margin=settings_model.triplet_loss_margin,
         embedding_dim=settings_model.embedding_dim,
         num_local_images_to_use=settings_model.num_local_images_to_use,
-        num_remote_images_to_use=settings_model.num_remote_images_to_use
+        num_remote_images_to_use=settings_model.num_remote_images_to_use,
     )
 
     users = []
     for i in range(num_users):
-        user = DeviceTraining(device_id=i,
-                              settings=settings_edge_device,
-                              faces_metadata_local=face_local_meta_dataset[i],
-                              faces_metadata_remote=face_remote_meta_dataset[0])
+        user = DeviceTraining(
+            device_id=i,
+            settings=settings_edge_device,
+            faces_metadata_local=face_local_meta_dataset[i],
+            faces_metadata_remote=face_remote_meta_dataset[0],
+        )
         users.append(user)
 
     max_users_in_round = max(int(settings_federated.user_fraction * num_users), 1)
@@ -228,9 +252,9 @@ def federated_training(model: Module,
 
         free_users = list(range(num_users))
         while free_users:
-            users_in_round_ids = np.random.choice(free_users,
-                                                  max_users_in_round,
-                                                  replace=False)
+            users_in_round_ids = np.random.choice(
+                free_users, max_users_in_round, replace=False
+            )
             [free_users.remove(i) for i in users_in_round_ids]
 
             for i_user in users_in_round_ids:
@@ -250,14 +274,15 @@ def federated_training(model: Module,
 
         results_train: fd.TrainingResult = average_results(list(local_results.values()))
 
-        metrics: EvaluationMetrics = evaluate(model.cuda(),
-                                              distance_fn,
-                                              validate_dataloader,
-                                              None)
+        metrics: EvaluationMetrics = evaluate(
+            model.cuda(), distance_fn, validate_dataloader, None
+        )
 
         pprint(dataclasses.asdict(metrics))
         tensorboard.add_dict(dataclasses.asdict(metrics), global_step)
-        tensorboard.add_scalar("loss_train", results_train.loss, global_step=global_step)
+        tensorboard.add_scalar(
+            "loss_train", results_train.loss, global_step=global_step
+        )
 
         # Save model checkpoint
         state = {
@@ -270,14 +295,18 @@ def federated_training(model: Module,
         }
 
         # Save model checkpoint
-        checkpoint_name = f"{settings_model.model_architecture}_{i_epoch}_{global_step}.pt"
+        checkpoint_name = (
+            f"{settings_model.model_architecture}_{i_epoch}_{global_step}.pt"
+        )
         torch.save(state, checkpoint_path.joinpath(checkpoint_name))
     return model
 
 
-def train(settings_model: ModelSettings,
-          settings_data: DataSettings,
-          settings_federated: FederatedSettings):
+def train(
+    settings_model: ModelSettings,
+    settings_data: DataSettings,
+    settings_federated: FederatedSettings,
+):
     output_dir: Path = settings_data.output_dir
     output_dir_logs = output_dir.joinpath("logs")
     output_dir_plots = output_dir.joinpath("plots")
@@ -293,11 +322,15 @@ def train(settings_model: ModelSettings,
     start_epoch: int = 0
     global_step: int = 0
 
-    data_loader_validate: DataLoader = get_validation_data_loader(settings_model, settings_data)
+    data_loader_validate: DataLoader = get_validation_data_loader(
+        settings_model, settings_data
+    )
 
-    model: Module = ModelBuilder.build(settings_model.model_architecture,
-                                       settings_model.embedding_dim,
-                                       settings_model.pretrained_on_imagenet)
+    model: Module = ModelBuilder.build(
+        settings_model.model_architecture,
+        settings_model.embedding_dim,
+        settings_model.pretrained_on_imagenet,
+    )
 
     print("Using {} model architecture.".format(model_architecture))
 
@@ -314,26 +347,32 @@ def train(settings_model: ModelSettings,
 
     # Start Training loop
 
-    face_local__meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_local_dir,
-                                               csv_name=settings_data.dataset_local_csv_file,
-                                               min_images_per_class=2)
+    face_local__meta_dataset = FaceMetaDataset(
+        root_dir=settings_data.dataset_local_dir,
+        csv_name=settings_data.dataset_local_csv_file,
+        min_images_per_class=2,
+    )
 
-    face_remote_meta_dataset = FaceMetaDataset(root_dir=settings_data.dataset_remote_dir,
-                                               csv_name=settings_data.dataset_remote_csv_file,
-                                               min_images_per_class=1)
+    face_remote_meta_dataset = FaceMetaDataset(
+        root_dir=settings_data.dataset_remote_dir,
+        csv_name=settings_data.dataset_remote_csv_file,
+        min_images_per_class=1,
+    )
 
     l2_distance = PairwiseDistance(2).cuda()
 
     tensorboard = Tensorboard(output_dir_tensorboard)
 
-    federated_training(model=model,
-                       global_step=global_step,
-                       start_epoch=start_epoch,
-                       face_local_meta_dataset=face_local__meta_dataset,
-                       face_remote_meta_dataset=face_remote_meta_dataset,
-                       validate_dataloader=data_loader_validate,
-                       settings_federated=settings_federated,
-                       settings_model=settings_model,
-                       tensorboard=tensorboard,
-                       distance_fn=l2_distance,
-                       checkpoint_path=output_dir_checkpoints)
+    federated_training(
+        model=model,
+        global_step=global_step,
+        start_epoch=start_epoch,
+        face_local_meta_dataset=face_local__meta_dataset,
+        face_remote_meta_dataset=face_remote_meta_dataset,
+        validate_dataloader=data_loader_validate,
+        settings_federated=settings_federated,
+        settings_model=settings_model,
+        tensorboard=tensorboard,
+        distance_fn=l2_distance,
+        checkpoint_path=output_dir_checkpoints,
+    )

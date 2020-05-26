@@ -16,7 +16,7 @@ class LFWDataset(datasets.ImageFolder):
 
     def read_lfw_pairs(self, pairs_filename):
         pairs = []
-        with open(pairs_filename, 'r') as f:
+        with open(pairs_filename, "r") as f:
             for line in f.readlines()[1:]:
                 pair = line.strip().split()
                 pairs.append(pair)
@@ -31,32 +31,45 @@ class LFWDataset(datasets.ImageFolder):
         for pair in pairs:
             if len(pair) == 3:
                 path0 = self.add_extension(
-                    os.path.join(lfw_dir, pair[0], pair[0] + '_' + '%04d' % int(pair[1])))
+                    os.path.join(
+                        lfw_dir, pair[0], pair[0] + "_" + "%04d" % int(pair[1])
+                    )
+                )
                 path1 = self.add_extension(
-                    os.path.join(lfw_dir, pair[0], pair[0] + '_' + '%04d' % int(pair[2])))
+                    os.path.join(
+                        lfw_dir, pair[0], pair[0] + "_" + "%04d" % int(pair[2])
+                    )
+                )
                 issame = True
             elif len(pair) == 4:
                 path0 = self.add_extension(
-                    os.path.join(lfw_dir, pair[0], pair[0] + '_' + '%04d' % int(pair[1])))
+                    os.path.join(
+                        lfw_dir, pair[0], pair[0] + "_" + "%04d" % int(pair[1])
+                    )
+                )
                 path1 = self.add_extension(
-                    os.path.join(lfw_dir, pair[2], pair[2] + '_' + '%04d' % int(pair[3])))
+                    os.path.join(
+                        lfw_dir, pair[2], pair[2] + "_" + "%04d" % int(pair[3])
+                    )
+                )
                 issame = False
             if os.path.exists(path0) and os.path.exists(
-                    path1):  # Only add the pair if both paths exist
+                path1
+            ):  # Only add the pair if both paths exist
                 path_list.append((path0, path1, issame))
                 issame_list.append(issame)
             else:
                 nrof_skipped_pairs += 1
         if nrof_skipped_pairs > 0:
-            print('Skipped %d image pairs' % nrof_skipped_pairs)
+            print("Skipped %d image pairs" % nrof_skipped_pairs)
 
         return path_list
 
     def add_extension(self, path):
-        if os.path.exists(path + '.jpg'):
-            return path + '.jpg'
-        elif os.path.exists(path + '.png'):
-            return path + '.png'
+        if os.path.exists(path + ".jpg"):
+            return path + ".jpg"
+        elif os.path.exists(path + ".png"):
+            return path + ".png"
         else:
             raise RuntimeError('No file "%s" with extension png or jpg.' % path)
 

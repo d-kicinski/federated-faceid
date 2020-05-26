@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import *
 
 import torch
-from torch.nn import Module, CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, Module
 from torch.utils.data import DataLoader
 
 
@@ -42,7 +42,9 @@ class ModelAccumulator:
 
     def get(self):
         for k in self.global_weights.keys():
-            self.global_weights[k] = torch.div(self.global_weights[k], self.model_counter)
+            self.global_weights[k] = torch.div(
+                self.global_weights[k], self.model_counter
+            )
 
         self.global_model.load_state_dict(self.global_weights)
         return self.global_model
@@ -70,7 +72,9 @@ class TrainingResult:
 
 
 class EdgeDevice:
-    def __init__(self, device_id: int, settings: EdgeDeviceSettings, data_loader: DataLoader):
+    def __init__(
+        self, device_id: int, settings: EdgeDeviceSettings, data_loader: DataLoader
+    ):
         self.device_id = device_id
         self._data_loader = data_loader
         self.setting = copy.deepcopy(settings)
@@ -91,9 +95,12 @@ class EdgeDevice:
             raise ValueError("Dataset not found on this device!")
 
         self._model.train()
-        self.setting.learning_rate = self.setting.learning_rate * self.setting.learning_rate_decay
-        optimizer = torch.optim.SGD(params=self._model.parameters(),
-                                    lr=self.setting.learning_rate)
+        self.setting.learning_rate = (
+            self.setting.learning_rate * self.setting.learning_rate_decay
+        )
+        optimizer = torch.optim.SGD(
+            params=self._model.parameters(), lr=self.setting.learning_rate
+        )
         epoch_loss = []
         local_steps: int = 0
         for _ in range(self.setting.epochs):
@@ -112,6 +119,6 @@ class EdgeDevice:
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
 
         mean_loss = sum(epoch_loss) / len(epoch_loss)
-        return TrainingResult(loss=mean_loss,
-                              steps=local_steps,
-                              learning_rate=self.setting.learning_rate)
+        return TrainingResult(
+            loss=mean_loss, steps=local_steps, learning_rate=self.setting.learning_rate
+        )

@@ -4,7 +4,6 @@ from torch.nn.modules.distance import PairwiseDistance
 
 
 class TripletLoss(Module):
-
     def __init__(self, margin):
         super(TripletLoss, self).__init__()
         self.margin = margin

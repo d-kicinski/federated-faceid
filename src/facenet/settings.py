@@ -9,7 +9,9 @@ class DataSettings:
     dataset_dir: Path = Path("../../../data/vggface2/train_cropped")
     lfw_dir: Path = Path("../../../data/lfw/data")
     dataset_csv_file: Path = Path("../../../data/vggface2/train_cropped_meta.csv")
-    training_triplets_path: Path = Path("../../../data/vggface2/train_triplets_100000.npy")
+    training_triplets_path: Path = Path(
+        "../../../data/vggface2/train_triplets_100000.npy"
+    )
     checkpoint_path: Optional[Path] = None
 
 

@@ -23,8 +23,12 @@ class EvaluationMetrics:
     distance: float
 
 
-def evaluate(model: Module, distance_fn: Module, data_loader: DataLoader,
-             figure_path: Optional[Path] = None) -> EvaluationMetrics:
+def evaluate(
+    model: Module,
+    distance_fn: Module,
+    data_loader: DataLoader,
+    figure_path: Optional[Path] = None,
+) -> EvaluationMetrics:
     with torch.no_grad():
         distances, labels = [], []
 
@@ -38,22 +42,36 @@ def evaluate(model: Module, distance_fn: Module, data_loader: DataLoader,
             labels.append(label.cpu().detach().numpy())
 
         labels = np.array([sublabel for label in labels for sublabel in label])
-        distances = np.array([subdist for distance in distances for subdist in distance])
+        distances = np.array(
+            [subdist for distance in distances for subdist in distance]
+        )
 
-        (true_positive_rate, false_positive_rate,
-         precision, recall, accuracy,
-         roc_auc, best_distances, tar, far) = evaluate_lfw(distances=distances, labels=labels)
+        (
+            true_positive_rate,
+            false_positive_rate,
+            precision,
+            recall,
+            accuracy,
+            roc_auc,
+            best_distances,
+            tar,
+            far,
+        ) = evaluate_lfw(distances=distances, labels=labels)
 
         # Plot ROC curve
         if figure_path is not None:
-            plot_roc_lfw(false_positive_rate=false_positive_rate,
-                         true_positive_rate=true_positive_rate,
-                         figure_name=str(figure_path))
+            plot_roc_lfw(
+                false_positive_rate=false_positive_rate,
+                true_positive_rate=true_positive_rate,
+                figure_name=str(figure_path),
+            )
 
-        return EvaluationMetrics(accuracy=float(np.mean(accuracy)),
-                                 precision=float(np.mean(precision)),
-                                 recall=float(np.mean(recall)),
-                                 roc_auc=roc_auc,
-                                 tar=float(np.mean(tar)),
-                                 far=float(np.mean(far)),
-                                 distance=float(np.mean(best_distances)))
+        return EvaluationMetrics(
+            accuracy=float(np.mean(accuracy)),
+            precision=float(np.mean(precision)),
+            recall=float(np.mean(recall)),
+            roc_auc=roc_auc,
+            tar=float(np.mean(tar)),
+            far=float(np.mean(far)),
+            distance=float(np.mean(best_distances)),
+        )

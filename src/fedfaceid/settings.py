@@ -14,7 +14,9 @@ class DataSettings:
     dataset_remote_dir: Path = Path("../../../data/nv/nv-gen_cropped")
     dataset_remote_csv_file: Path = Path("../../../data/nv/nv-gen_train_meta.csv")
 
-    checkpoint_path: Optional[Path] = Path("../../../resources/models/resnet50_triplet.pt")
+    checkpoint_path: Optional[Path] = Path(
+        "../../../resources/models/resnet50_triplet.pt"
+    )
 
 
 @dataclass

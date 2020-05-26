@@ -1,10 +1,10 @@
 import csv
-from collections import defaultdict, UserDict
+from collections import UserDict, defaultdict
 from pathlib import Path
-from typing import Optional, Callable, List
+from typing import Callable, List, Optional
 
-import PIL
 import numpy as np
+import PIL
 from PIL.Image import Image
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -48,21 +48,24 @@ class FaceMetaSamples(UserDict):
 
 
 class PeopleDataset(Dataset):
-    def __init__(self,
-                 image_paths: List[Path],
-                 num_images_per_class: List[int],
-                 transform: Optional[Callable] = None):
+    def __init__(
+        self,
+        image_paths: List[Path],
+        num_images_per_class: List[int],
+        transform: Optional[Callable] = None,
+    ):
         self.image_paths: List[Path] = image_paths
         self.num_images_per_class: List[int] = num_images_per_class
 
         if transform is None:
-            self.transform = transforms.Compose([
-                transforms.RandomCrop(size=160),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                                     std=[0.5, 0.5, 0.5])
-            ])
+            self.transform = transforms.Compose(
+                [
+                    transforms.RandomCrop(size=160),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                ]
+            )
         else:
             self.transform: Optional[Callable] = transform
 
@@ -87,22 +90,23 @@ class TripletsDataset(Dataset):
     def __getitem__(self, idx: int):
         triplet = self.triplets[idx]
 
-        return Triplet(anchor=self.dataset[triplet.anchor],
-                       positive=self.dataset[triplet.positive],
-                       negative=self.dataset[triplet.negative]).data
+        return Triplet(
+            anchor=self.dataset[triplet.anchor],
+            positive=self.dataset[triplet.positive],
+            negative=self.dataset[triplet.negative],
+        ).data
 
 
 class FaceMetaDataset(Dataset):
-    def __init__(self,
-                 root_dir: Path,
-                 csv_name: Path,
-                 min_images_per_class: int = 1):
+    def __init__(self, root_dir: Path, csv_name: Path, min_images_per_class: int = 1):
         self.root_dir: Path = root_dir
         self.min_images_per_class = min_images_per_class
 
         self.metadata: List[FaceMetaSamples] = self.load_metadata(root_dir, csv_name)
 
-    def load_metadata(self, dataset_path: Path, metadata_path: Path) -> List[FaceMetaSamples]:
+    def load_metadata(
+        self, dataset_path: Path, metadata_path: Path
+    ) -> List[FaceMetaSamples]:
         face_samples = defaultdict(list)
         with metadata_path.open("r") as metadata_file:
             reader = csv.DictReader(metadata_file)
@@ -113,7 +117,9 @@ class FaceMetaDataset(Dataset):
         for name, filenames in tqdm(face_samples.items(), desc="Processing metadata"):
             if len(filenames) >= self.min_images_per_class:
                 image_paths = [
-                    _add_extension(dataset_path.joinpath(name, filename)) for filename in filenames]
+                    _add_extension(dataset_path.joinpath(name, filename))
+                    for filename in filenames
+                ]
                 face_meta_samples.append(FaceMetaSamples(name, image_paths))
 
         return face_meta_samples
@@ -134,9 +140,9 @@ def _add_extension(path: Path) -> Path:
         raise RuntimeError(f"No file {path} with extension png or jpg.")
 
 
-def select_people(dataset: FaceMetaDataset,
-                  people_per_batch: int,
-                  images_per_person: int) -> PeopleDataset:
+def select_people(
+    dataset: FaceMetaDataset, people_per_batch: int, images_per_person: int
+) -> PeopleDataset:
     num_images_to_sample = people_per_batch * images_per_person
 
     # Sample classes from the dataset
@@ -155,9 +161,12 @@ def select_people(dataset: FaceMetaDataset,
         num_images_in_class = len(dataset[class_index])
         image_indices = np.arange(num_images_in_class)
         np.random.shuffle(image_indices)
-        num_images_from_class = min(num_images_in_class, images_per_person,
-                                    num_images_to_sample - len(image_paths))
-        idx = image_indices[0: num_images_from_class]
+        num_images_from_class = min(
+            num_images_in_class,
+            images_per_person,
+            num_images_to_sample - len(image_paths),
+        )
+        idx = image_indices[0:num_images_from_class]
         image_paths_for_class = [dataset[class_index].image_paths[j] for j in idx]
 
         image_paths += image_paths_for_class
@@ -167,10 +176,12 @@ def select_people(dataset: FaceMetaDataset,
     return PeopleDataset(image_paths, num_images_per_class)
 
 
-def select_triplets(embedding: Tensor,
-                    num_images_per_class: List[int],
-                    people_per_batch: int,
-                    alpha: float) -> List[TripletIndexes]:
+def select_triplets(
+    embedding: Tensor,
+    num_images_per_class: List[int],
+    people_per_batch: int,
+    alpha: float,
+) -> List[TripletIndexes]:
     """ Select the triplets for training"""
 
     idx_embedding_start: int = 0
@@ -190,24 +201,26 @@ def select_triplets(embedding: Tensor,
 
             # calculate distances of each image to current anchor and mask inter class distances
             distances_neg = np.sum(np.square(embedding[idx_anchor] - embedding), axis=1)
-            distances_neg[idx_embedding_start: idx_embedding_start + num_images_in_class] = np.NaN
+            distances_neg[
+                idx_embedding_start : idx_embedding_start + num_images_in_class
+            ] = np.NaN
 
             # For every possible positive  pair.
             for k_image in range(j_image + 1, num_images_in_class):
                 idx_pos = idx_embedding_start + k_image
 
-                distance_pos = np.sum(np.square(
-                    embedding[idx_anchor] - embedding[idx_pos]
-                ))
+                distance_pos = np.sum(
+                    np.square(embedding[idx_anchor] - embedding[idx_pos])
+                )
 
-                all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[0]
+                all_neg = np.asarray((distances_neg - distance_pos) < alpha).nonzero()[
+                    0
+                ]
                 num_neg = all_neg.shape[0]
 
                 if num_neg > 0:
                     idx_neg = all_neg[np.random.randint(num_neg)]
-                    triplets.append(TripletIndexes(idx_anchor,
-                                                   idx_pos,
-                                                   idx_neg))
+                    triplets.append(TripletIndexes(idx_anchor, idx_pos, idx_neg))
 
         idx_embedding_start += num_images_in_class
     return triplets
