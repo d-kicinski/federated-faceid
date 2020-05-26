@@ -8,4 +8,7 @@ sklearn
 tensorboard
 tqdm
 pytest
+black
+mypy
+isort
 facenet-pytorch

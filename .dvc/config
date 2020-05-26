@@ -1,4 +1,0 @@
-['remote "gc"']
-url = gs://federated-faceid
-[core]
-remote = gc

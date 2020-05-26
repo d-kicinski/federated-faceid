@@ -16,35 +16,31 @@ from facenet.settings import ModelSettings, DataSettings
 
 class ModelBuilder:
     @staticmethod
-    def build(model_architecture: str, embedding_dim: int, imagenet_pretrained: bool) -> Module:
+    def build(
+        model_architecture: str, embedding_dim: int, imagenet_pretrained: bool
+    ) -> Module:
         if model_architecture == "resnet18":
             model = models.Resnet18Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
+                embedding_dimension=embedding_dim, pretrained=imagenet_pretrained
             )
         elif model_architecture == "resnet34":
             model = models.Resnet34Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
+                embedding_dimension=embedding_dim, pretrained=imagenet_pretrained
             )
         elif model_architecture == "resnet50":
             model = models.Resnet50Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
+                embedding_dimension=embedding_dim, pretrained=imagenet_pretrained
             )
         elif model_architecture == "resnet101":
             model = models.Resnet101Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
+                embedding_dimension=embedding_dim, pretrained=imagenet_pretrained
             )
         elif model_architecture == "inceptionresnetv2":
             model = models.InceptionResnetV2Triplet(
-                embedding_dimension=embedding_dim,
-                pretrained=imagenet_pretrained
+                embedding_dimension=embedding_dim, pretrained=imagenet_pretrained
             )
         elif model_architecture == "inceptionresnetv1":
-            model = models.InceptionResnetV1Triplet(
-                embedding_dimension=embedding_dim)
+            model = models.InceptionResnetV1Triplet(embedding_dimension=embedding_dim)
         elif model_architecture == "inception_resnet_v1_vggface2":
             model = models.InceptionResnetV1(pretrained="vggface2")
         elif model_architecture == "inception_resnet_v1_casia":
@@ -63,9 +59,11 @@ class CheckpointValue:
     global_step: int
 
 
-def load_checkpoint(checkpoint_path: Path,
-                    model: Optional[Module] = None,
-                    optimizer: Optional[Optimizer] = None) -> CheckpointValue:
+def load_checkpoint(
+    checkpoint_path: Path,
+    model: Optional[Module] = None,
+    optimizer: Optional[Optimizer] = None,
+) -> CheckpointValue:
     if not checkpoint_path.exists():
         raise ValueError(f"Checkpoint {checkpoint_path} doesnt exist!")
 
@@ -91,47 +89,55 @@ def load_checkpoint(checkpoint_path: Path,
     return CheckpointValue(model, optimizer, epoch, global_step)
 
 
-def get_train_data_loader(settings_model: ModelSettings,
-                          settings_data: DataSettings) -> DataLoader:
+def get_train_data_loader(
+    settings_model: ModelSettings, settings_data: DataSettings
+) -> DataLoader:
     # Define image data pre-processing transforms
     #   ToTensor() normalizes pixel values between [0, 1]
     #   Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]) normalizes pixel values between [-1, 1]
 
-    transforms_train = transforms.Compose([
-        transforms.RandomCrop(size=160),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std=[0.5, 0.5, 0.5])
-    ])
+    transforms_train = transforms.Compose(
+        [
+            transforms.RandomCrop(size=160),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
 
     data_loader_train = DataLoader(
-        dataset=TripletFaceDataset(root_dir=settings_data.dataset_dir,
-                                   csv_name=settings_data.dataset_csv_file,
-                                   num_triplets=settings_model.num_triplets_train,
-                                   training_triplets_path=settings_data.training_triplets_path,
-                                   transform=transforms_train),
+        dataset=TripletFaceDataset(
+            root_dir=settings_data.dataset_dir,
+            csv_name=settings_data.dataset_csv_file,
+            num_triplets=settings_model.num_triplets_train,
+            training_triplets_path=settings_data.training_triplets_path,
+            transform=transforms_train,
+        ),
         batch_size=settings_model.batch_size,
         num_workers=settings_model.num_workers,
-        shuffle=False
+        shuffle=False,
     )
     return data_loader_train
 
 
-def get_validation_data_loader(settings_model: ModelSettings,
-                               settings_data: DataSettings) -> DataLoader:
-    transforms_lfw = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std=[0.5, 0.5, 0.5])
-    ])
+def get_validation_data_loader(
+    settings_model: ModelSettings, settings_data: DataSettings
+) -> DataLoader:
+    transforms_lfw = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
 
     data_loader_lfw = DataLoader(
-        dataset=LFWDataset(data_path=settings_data.lfw_dir.joinpath("test"),
-                           pairs_path=settings_data.lfw_dir.joinpath("LFW_pairs.txt"),
-                           transform=transforms_lfw),
+        dataset=LFWDataset(
+            data_path=settings_data.lfw_dir.joinpath("test"),
+            pairs_path=settings_data.lfw_dir.joinpath("LFW_pairs.txt"),
+            transform=transforms_lfw,
+        ),
         batch_size=settings_model.lfw_batch_size,
         num_workers=settings_model.num_workers,
-        shuffle=False
+        shuffle=False,
     )
     return data_loader_lfw
