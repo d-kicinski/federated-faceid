@@ -10,10 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import CIFAR10
 
 import federated as fd
-from training.commons import EarlyStopping
-from training.evaluation import EvaluationResult, evaluate
-from utils import data
-from utils.settings import Settings
+from cifar.training.evaluation import EvaluationResult, evaluate
+from cifar.utils import data
+from cifar.utils.settings import Settings
+from common import EarlyStopping
 
 
 def merge_subsets(s1: Subset, s2: Subset) -> Subset:

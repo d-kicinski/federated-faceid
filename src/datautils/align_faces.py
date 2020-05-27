@@ -7,12 +7,15 @@ from facenet_pytorch import MTCNN, training
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+DATA_DIR: str = "data/lfw/raw"
+OUTPUT_DIR: str = "data/lfw/processed/train"
+IMAGE_SIZE: int = 160
+MARGIN: int = 32
+NUM_WORKERS: int = 1
 BATCH_SIZE: int = 64
-NUM_WORKERS: int = 6
-DATA_DIR: str = "../../../data/vggface2/train"
 
 
-def preprocess_vggface2(
+def align_faces(
     data_dir: Union[Path, str],
     output_dir: Union[Path, str],
     num_workers: int,
@@ -32,13 +35,7 @@ def preprocess_vggface2(
     print("Running processing on device: {}".format(device))
 
     mtcnn = MTCNN(
-        image_size=image_size,
-        margin=margin,
-        min_face_size=20,
-        thresholds=[0.6, 0.7, 0.7],
-        factor=0.709,
-        prewhiten=False,
-        device=device,
+        image_size=image_size, margin=margin, post_process=False, device=device,
     )
 
     dataset = datasets.ImageFolder(data_dir, transform=transforms.Resize((512, 512)))
@@ -53,18 +50,18 @@ def preprocess_vggface2(
 
     batch_num = len(loader)
     for i, (x, y) in enumerate(loader):
-        mtcnn(x, save_path=y)
+        mtcnn(x, save_path=None)
         print("\rBatch {} of {}".format(i + 1, batch_num), end="")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Align faces for further training")
     parser.add_argument("--data_dir", type=lambda p: Path(p), default=DATA_DIR)
-    parser.add_argument("--output_dir", type=lambda p: Path(p), required=True)
+    parser.add_argument("--output_dir", type=lambda p: Path(p), default=OUTPUT_DIR)
     parser.add_argument("--num_workers", type=int, default=NUM_WORKERS)
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
-    parser.add_argument("--image_size", type=int, required=True)
-    parser.add_argument("--margin", type=int, required=True)
+    parser.add_argument("--image_size", type=int, default=IMAGE_SIZE)
+    parser.add_argument("--margin", type=int, default=MARGIN)
     parser.add_argument("--cpu", action="store_true", default=False, required=False)
 
     return parser.parse_args()
@@ -72,7 +69,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    preprocess_vggface2(
+    align_faces(
         args.data_dir,
         args.output_dir,
         args.num_workers,

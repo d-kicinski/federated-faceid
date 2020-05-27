@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from utils import constants
+from cifar.utils import constants
 
 
 @dataclass

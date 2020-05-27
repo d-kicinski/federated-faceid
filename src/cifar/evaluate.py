@@ -3,11 +3,11 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
-from models.baseline import CNNCifar10
-from training import evaluation
-from training.evaluation import EvaluationResult
-from utils import constants
-from utils.settings import Settings, args_parser, create_save_path
+from cifar.models.baseline import CNNCifar10
+from cifar.training import evaluation
+from cifar.training.evaluation import EvaluationResult
+from cifar.utils import constants
+from cifar.utils.settings import Settings, args_parser, create_save_path
 
 
 def evaluate():

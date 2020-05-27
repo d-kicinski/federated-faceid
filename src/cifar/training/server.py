@@ -6,9 +6,9 @@ from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-from training.commons import EarlyStopping
-from training.evaluation import EvaluationResult, evaluate
-from utils.settings import Settings
+from cifar.training.evaluation import EvaluationResult, evaluate
+from cifar.utils.settings import Settings
+from common import EarlyStopping
 
 
 def train_server(
