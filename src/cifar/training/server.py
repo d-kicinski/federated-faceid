@@ -15,7 +15,10 @@ def train_server(
     model: Module, dataset_train: Dataset, dataset_validate: Dataset, settings: Settings
 ) -> Module:
     dataset_iter_train = DataLoader(
-        dataset_train, batch_size=settings.num_global_batch, shuffle=True
+        dataset_train,
+        batch_size=settings.num_global_batch,
+        shuffle=True,
+        pin_memory=False if settings.device == "cpu" else True,
     )
     dataset_iter_validate = DataLoader(
         dataset_validate, batch_size=settings.num_global_batch
@@ -40,8 +43,7 @@ def train_server(
     list_loss = []
     global_step = 0
     for i_epoch in range(settings.num_global_epochs):
-        model.train()
-        model.cuda()
+        model.train().to(settings.device)
 
         batch_loss = []
         for i_batch, (inputs, target) in enumerate(dataset_iter_train):
@@ -63,7 +65,8 @@ def train_server(
                 )
             global_step += 1
 
-        results: EvaluationResult = evaluate(model.cpu(), dataset_iter_validate)
+        model.eval().cpu()
+        results: EvaluationResult = evaluate(model, dataset_iter_validate)
         for key, value in dataclasses.asdict(results).items():
             writer.add_scalar(key, value, global_step=global_step)
 
@@ -73,7 +76,7 @@ def train_server(
         print(
             f"epoch={i_epoch}  "
             f"global_step={global_step}  "
-            f"lr={scheduler.get_lr()[0]:.4f}  "
+            f"lr={scheduler.get_last_lr()[0]:.4f}  "
             f"train_loss={loss_avg:.3f}  "
             f"eval_loss={results.loss:.3f}  "
             f"eval_f1={results.f1_score:.3f}"
@@ -87,5 +90,5 @@ def train_server(
             model.load_state_dict(torch.load(settings.save_path.joinpath("model.pt")))
             break
 
-        scheduler.step(i_epoch)
+        scheduler.step()
     return model

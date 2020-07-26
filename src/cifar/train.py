@@ -43,9 +43,7 @@ def train():
     )
 
     model: torch.nn.Module = CNNCifar10()
-    summary(model, (3, 24, 24))
-
-    model.to(settings.device)
+    summary(model.cuda(), (3, 32, 32))
 
     dataset_test = CIFAR10(
         constants.PATH_DATASET_CIFAR10,
@@ -62,7 +60,8 @@ def train():
     test_loader = DataLoader(
         dataset_test, batch_size=settings.num_global_batch, shuffle=False
     )
-    result: EvaluationResult = evaluate(model.cpu(), test_loader, verbose=True)
+    model.eval().cpu()
+    result: EvaluationResult = evaluate(model, test_loader, verbose=True)
     with settings.save_path.joinpath("evaluation.txt").open("w") as f:
         f.write(str(result))
 

@@ -25,7 +25,6 @@ class EvaluationResult:
 def evaluate(
     model: Module, data_loader: DataLoader, verbose: bool = False
 ) -> EvaluationResult:
-    model.eval()
     loss: float = 0.0
 
     labels_golden: List[int] = []
