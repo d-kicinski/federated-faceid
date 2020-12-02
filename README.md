@@ -1,3 +1,3 @@
 # Federated FaceID
 
-## CIFAR10
+[![Build Status](https://travis-ci.org/d-kicinski/federated-faceid.svg?branch=master)](https://travis-ci.org/d-kicinski/federated-faceid)
