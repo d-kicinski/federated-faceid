@@ -73,7 +73,9 @@ def train_federated(
         subset_for_user = reduce(merge_subsets, [subsets[i] for i in indices])
 
         user = fd.EdgeDevice(
-            device_id=i, subset=subset_for_user, settings=settings_edge_device
+            device_id=i,
+            data_loader=DataLoader(subset_for_user, settings_edge_device.batch_size),
+            settings=settings_edge_device
         )
         users.append(user)
 
@@ -89,8 +91,7 @@ def train_federated(
 
     global_step = 0
     for i_epoch in range(settings.num_global_epochs):
-        model.cuda()
-        model.train()
+        model.train().to(settings.device)
 
         # local_models: Dict[int, Module] = {}
         local_results: Dict[int, fd.TrainingResult] = {}
@@ -114,8 +115,9 @@ def train_federated(
 
             global_step += 1
 
+        model.eval().cpu()
         results_train: fd.TrainingResult = average_results(list(local_results.values()))
-        results_eval: EvaluationResult = evaluate(model.cpu(), dataset_iter_validate)
+        results_eval: EvaluationResult = evaluate(model, dataset_iter_validate)
 
         for key, value in dataclasses.asdict(results_eval).items():
             writer.add_scalar(key, value, global_step=global_step)
