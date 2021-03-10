@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class EarlyStopping:
     def __init__(self, patience: int):
         self._should_init = True
@@ -23,7 +26,7 @@ class EarlyStopping:
         else:
             return False
 
-    def update(self, loss: float) -> "EarlyStopping":
+    def update(self, loss: float) -> EarlyStopping:
         if self._should_init:
             self._value = loss
             self._should_init = False

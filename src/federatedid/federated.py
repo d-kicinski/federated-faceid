@@ -1,6 +1,6 @@
 import copy
 from dataclasses import dataclass
-from typing import *
+from typing import List, Optional
 
 import torch
 from torch.nn import CrossEntropyLoss, Module

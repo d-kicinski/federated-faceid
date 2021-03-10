@@ -5,10 +5,10 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
+from federatedid import EarlyStopping
 
 from cifar.training.evaluation import EvaluationResult, evaluate
 from cifar.utils.settings import Settings
-from common import EarlyStopping
 
 
 def train_server(
@@ -26,10 +26,12 @@ def train_server(
 
     criterion = torch.nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.SGD(params=model.parameters(), lr=settings.learning_rate)
+    optimizer = torch.optim.SGD(params=model.parameters(),
+                                momentum=0.9,
+                                lr=settings.learning_rate)
 
     scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=1, gamma=settings.learning_rate_decay
+        optimizer, step_size=settings.num_global_epochs//2, gamma=settings.learning_rate_decay
     )
 
     early_stopping = EarlyStopping(settings.stopping_rounds)

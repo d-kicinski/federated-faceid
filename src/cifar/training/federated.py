@@ -9,11 +9,10 @@ from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import CIFAR10
 
-import federated as fd
+import federatedid as fd
 from cifar.training.evaluation import EvaluationResult, evaluate
 from cifar.utils import data
 from cifar.utils.settings import Settings
-from common import EarlyStopping
 
 
 def merge_subsets(s1: Subset, s2: Subset) -> Subset:
@@ -81,7 +80,7 @@ def train_federated(
 
     max_users_in_round = max(int(settings.user_fraction * num_users), 1)
 
-    early_stopping = EarlyStopping(settings.stopping_rounds)
+    early_stopping = fd.EarlyStopping(settings.stopping_rounds)
     if settings.skip_stopping:
         early_stopping.disable()
 

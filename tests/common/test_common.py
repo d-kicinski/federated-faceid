@@ -1,4 +1,4 @@
-from common import EarlyStopping
+from federatedid import EarlyStopping
 
 
 def test_early_stopping_should_stop():

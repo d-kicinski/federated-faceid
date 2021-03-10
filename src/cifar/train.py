@@ -4,11 +4,12 @@ from torchsummary import summary
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
-from cifar import training
-from cifar.models.baseline import CNNCifar10
-from cifar.training.evaluation import EvaluationResult, evaluate
-from cifar.utils import constants
-from cifar.utils.settings import Settings, args_parser, create_save_path
+from federatedid.model import SimpleCNN
+
+import training
+from training.evaluation import EvaluationResult, evaluate
+from utils import constants
+from utils.settings import Settings, args_parser, create_save_path
 
 
 def train():
@@ -42,7 +43,7 @@ def train():
         download=True,
     )
 
-    model: torch.nn.Module = CNNCifar10()
+    model: torch.nn.Module = SimpleCNN(dim_output=10)
     summary(model.cuda(), (3, 32, 32))
 
     dataset_test = CIFAR10(

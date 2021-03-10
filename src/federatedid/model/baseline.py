@@ -4,9 +4,9 @@ from torch.nn import Module
 from torch.nn.functional import relu
 
 
-class CNNCifar10(Module):
+class SimpleCNN(Module):
     def __init__(self, dim_output: int = 10):
-        super(CNNCifar10, self).__init__()
+        super(SimpleCNN, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, 3)
         self.pool1 = nn.MaxPool2d((2, 2))
         self.conv2 = nn.Conv2d(32, 64, 3)
@@ -19,10 +19,7 @@ class CNNCifar10(Module):
         x = self.pool1(relu(self.conv1(x)))
         x = self.pool2(relu(self.conv2(x)))
         x = relu(self.conv3(x))
-
         x = torch.flatten(x, start_dim=1)
-
         x = relu(self.d1(x))
         x = self.d2(x)
-
         return x
