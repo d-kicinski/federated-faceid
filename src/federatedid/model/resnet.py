@@ -36,14 +36,8 @@ class Resnet18Embedding(nn.Module):
                            Defaults to False.
     """
 
-    def __init__(self, embedding_dimension=512, pretrained=False, use_batch_norm=True):
+    def __init__(self, embedding_dimension=512, pretrained=False, layer_norm: Type[nn.Module] = nn.BatchNorm2d):
         super(Resnet18Embedding, self).__init__()
-        layer_norm: Type[nn.Module]
-
-        if use_batch_norm:
-            layer_norm = nn.BatchNorm2d
-        else:
-            layer_norm = nn.Identity
 
         self.model = resnet18(pretrained=pretrained, norm_layer=layer_norm)
 
@@ -51,7 +45,7 @@ class Resnet18Embedding(nn.Module):
         input_features_fc_layer = self.model.fc.in_features
         last_layer: List[nn.Module] = [
             nn.Linear(input_features_fc_layer, embedding_dimension, bias=False)]
-        if use_batch_norm:
+        if last_layer is nn.BatchNorm2d:
             last_layer.append(
                 nn.BatchNorm1d(embedding_dimension, eps=0.001, momentum=0.1, affine=True)
             )
@@ -60,7 +54,19 @@ class Resnet18Embedding(nn.Module):
     def forward(self, images):
         """Forward pass to output the embedding vector (feature vector) after l2-normalization."""
         embedding = self.model(images)
-        # From: https://github.com/timesler/facenet-pytorch/blob/master/models/inception_resnet_v1.py#L301
         embedding = F.normalize(embedding, p=2, dim=1)
+        return embedding
 
+
+class Resnet18EmbeddingFixup(nn.Module):
+    def __init__(self, embedding_dimension=512, pretrained=False):
+        super(Resnet18EmbeddingFixup, self).__init__()
+
+        self.model = resnet18(pretrained=pretrained)
+        self.model.fc = nn.Linear(self.model.fc.in_features, embedding_dimension, bias=False)
+
+    def forward(self, images):
+        """Forward pass to output the embedding vector (feature vector) after l2-normalization."""
+        embedding = self.model(images)
+        embedding = F.normalize(embedding, p=2, dim=1)
         return embedding
