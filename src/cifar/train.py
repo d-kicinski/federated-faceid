@@ -43,7 +43,8 @@ def train():
         download=True,
     )
 
-    model: torch.nn.Module = SimpleCNN(dim_output=10)
+    model: torch.nn.Module = settings.model_class(output_dim=10,
+                                                  layer_norm=settings.layer_norm_class)
     summary(model.cuda(), (3, 32, 32))
 
     dataset_test = CIFAR10(

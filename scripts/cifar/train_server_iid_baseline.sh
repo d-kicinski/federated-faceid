@@ -7,4 +7,6 @@ python3 src/cifar/train.py \
   --num_global_batch 256 \
   --num_global_epochs 100 \
   --learning_rate 0.01 \
-  --learning_rate_decay 0.1
+  --learning_rate_decay 0.1 \
+  --model_class SimpleCNN \
+  --layer_norm_class NoLayerNorm

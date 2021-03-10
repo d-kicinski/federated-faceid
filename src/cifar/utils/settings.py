@@ -2,9 +2,10 @@ import argparse
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type, Union
 
 from cifar.utils import constants
+from federatedid import model
 
 
 @dataclass
@@ -27,6 +28,9 @@ class Settings:
     distributed: bool
 
     device: str
+
+    model_class: Type[Union[model.SimpleCNN, model.Resnet18, model.Resnet18Fixup]]
+    layer_norm_class: Type[Union[model.NoLayerNorm, model.BatchNorm, model.GroupNorm]]
 
     id: Optional[str] = None
     save_path: Optional[Path] = None
@@ -55,6 +59,12 @@ def args_parser() -> Settings:
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--id", type=str, required=False, default="default")
+
+    parser.add_argument("--model_class", type=lambda class_str: getattr(model, class_str),
+                        required=True)
+
+    parser.add_argument("--layer_norm_class", type=lambda class_str: getattr(model, class_str),
+                        required=True)
 
     parser.add_argument(
         "--skip_stopping", action="store_true", default=constants.SKIP_STOPPING

@@ -18,7 +18,7 @@ class Resnet18(nn.Module):
 
 
 class Resnet18Fixup(nn.Module):
-    def __init__(self, output_dim: int):
+    def __init__(self, output_dim: int, **kwargs):
         super(Resnet18Fixup, self).__init__()
         self.model = fixup_resnet18(num_classes=output_dim)
 
